@@ -104,21 +104,3 @@ export const instrumentDevice = (
     ),
   );
 };
-
-export const instrumentQueue = (
-  queue: GPUQueue,
-  state: GromaState,
-  registry: RestoreRegistry,
-) => {
-  registry.add(
-    patchMethod(
-      queue,
-      "submit",
-      (original) =>
-        function (this: GPUQueue, commandBuffers: Iterable<GPUCommandBuffer>) {
-          state.current.gpuSubmissionCount++;
-          return original.call(this, commandBuffers);
-        },
-    ),
-  );
-};

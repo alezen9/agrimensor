@@ -159,6 +159,34 @@ export const METRIC_DEFINITIONS: Readonly<
       "Counted on every beginComputePass() call on command encoders created through the attached device.",
     caveats: ["Counts passes begun, not passes that completed successfully."],
   },
+  "frame.queueWriteSumInBytes": {
+    name: "frame.queueWriteSumInBytes",
+    unit: "bytes",
+    source: "webgpu-api-observation",
+    confidence: "measured",
+    description:
+      "Bytes handed to the queue during this frame through writeBuffer() and writeTexture().",
+    methodology:
+      "For writeBuffer, the declared size, accounting for dataOffset and size being expressed in elements for a typed array and in bytes otherwise. For writeTexture, the copy region computed from the extent and the destination texture format.",
+    caveats: [
+      "This is data handed to the API, not bus traffic. Implementations batch, stage and schedule the real transfer.",
+      "Excludes data reaching the GPU through mappedAtCreation buffers or mapAsync writes, which are not observable as a queue call.",
+    ],
+  },
+  "frame.commandCopySumInBytes": {
+    name: "frame.commandCopySumInBytes",
+    unit: "bytes",
+    source: "derived",
+    confidence: "derived",
+    description:
+      "Bytes moved by copy commands recorded during this frame, across copyBufferToBuffer, copyBufferToTexture, copyTextureToBuffer and copyTextureToTexture.",
+    methodology:
+      "Buffer copies use the declared size, or the source buffer size minus its offset when size is omitted. Texture copies compute the region from the extent and the relevant texture format.",
+    caveats: [
+      "Counts bytes described by recorded commands, not bytes actually moved. A command buffer that is never submitted is still counted.",
+      "This is GPU-side movement. It is not a CPU upload and not a readback: copyTextureToBuffer only reaches a GPU buffer, and the transfer to CPU memory happens later at mapAsync, which this does not measure.",
+    ],
+  },
   "frame.pipelineCreationCount": {
     name: "frame.pipelineCreationCount",
     unit: "count",

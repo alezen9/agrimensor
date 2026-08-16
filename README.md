@@ -56,8 +56,11 @@ Read whenever you want. `snapshot()` is synchronous, never blocks, and never for
 readback:
 
 ```ts
-const { resources, frame, gpu } = groma.snapshot();
+const { resources, frame } = groma.snapshot();
 ```
+
+`resources` is always present. `frame` is present once two `beginRenderFrame()` calls have
+happened, since the tick that opens a frame is what closes the previous one.
 
 Every metric can explain itself:
 

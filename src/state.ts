@@ -6,6 +6,8 @@ export class FrameCounters {
   computeDispatchCount = 0;
   renderPassCount = 0;
   computePassCount = 0;
+  queueWriteSumInBytes = 0;
+  commandCopySumInBytes = 0;
   pipelineCreationCount = 0;
   pipelineCreationBlockingDurationSumInMs = 0;
   gpuSubmissionCount = 0;
@@ -15,6 +17,8 @@ export class FrameCounters {
     this.computeDispatchCount = 0;
     this.renderPassCount = 0;
     this.computePassCount = 0;
+    this.queueWriteSumInBytes = 0;
+    this.commandCopySumInBytes = 0;
     this.pipelineCreationCount = 0;
     this.pipelineCreationBlockingDurationSumInMs = 0;
     this.gpuSubmissionCount = 0;
@@ -48,6 +52,8 @@ export class GromaState {
       computeDispatchCount,
       renderPassCount,
       computePassCount,
+      queueWriteSumInBytes,
+      commandCopySumInBytes,
       pipelineCreationCount,
       pipelineCreationBlockingDurationSumInMs,
     } = this.current;
@@ -58,6 +64,8 @@ export class GromaState {
       computeDispatchCount,
       renderPassCount,
       computePassCount,
+      queueWriteSumInBytes,
+      commandCopySumInBytes,
       pipelineCreationCount,
       pipelineCreationBlockingDurationSumInMs,
     };

@@ -1,11 +1,85 @@
+import { calculateBufferCopyBytes } from "../bufferBytes";
 import { patchMethod } from "../patch";
 import type { GromaState } from "../state";
+import { calculateCopyRegionBytes } from "../textureBytes";
 import { instrumentComputePass, instrumentRenderPass } from "./passes";
+
+const instrumentCopies = (encoder: GPUCommandEncoder, state: GromaState) => {
+  patchMethod(
+    encoder,
+    "copyBufferToBuffer",
+    (original) =>
+      function (
+        this: GPUCommandEncoder,
+        // a rest of the union satisfies both the long form and the shorthand overload
+        ...args: (GPUBuffer | GPUSize64 | undefined)[]
+      ) {
+        state.current.commandCopySumInBytes += calculateBufferCopyBytes(args);
+        return Reflect.apply(original, this, args);
+      },
+  );
+
+  patchMethod(
+    encoder,
+    "copyBufferToTexture",
+    (original) =>
+      function (
+        this: GPUCommandEncoder,
+        source: GPUTexelCopyBufferInfo,
+        destination: GPUTexelCopyTextureInfo,
+        copySize: GPUExtent3DStrict,
+      ) {
+        state.current.commandCopySumInBytes += calculateCopyRegionBytes(
+          destination.texture.format,
+          copySize,
+        );
+        return original.call(this, source, destination, copySize);
+      },
+  );
+
+  patchMethod(
+    encoder,
+    "copyTextureToBuffer",
+    (original) =>
+      function (
+        this: GPUCommandEncoder,
+        source: GPUTexelCopyTextureInfo,
+        destination: GPUTexelCopyBufferInfo,
+        copySize: GPUExtent3DStrict,
+      ) {
+        state.current.commandCopySumInBytes += calculateCopyRegionBytes(
+          source.texture.format,
+          copySize,
+        );
+        return original.call(this, source, destination, copySize);
+      },
+  );
+
+  patchMethod(
+    encoder,
+    "copyTextureToTexture",
+    (original) =>
+      function (
+        this: GPUCommandEncoder,
+        source: GPUTexelCopyTextureInfo,
+        destination: GPUTexelCopyTextureInfo,
+        copySize: GPUExtent3DStrict,
+      ) {
+        state.current.commandCopySumInBytes += calculateCopyRegionBytes(
+          source.texture.format,
+          copySize,
+        );
+        return original.call(this, source, destination, copySize);
+      },
+  );
+};
 
 export const instrumentCommandEncoder = (
   encoder: GPUCommandEncoder,
   state: GromaState,
 ) => {
+  instrumentCopies(encoder, state);
+
   patchMethod(
     encoder,
     "beginRenderPass",

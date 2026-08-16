@@ -15,6 +15,12 @@ export class FakeRenderBundle {}
 export class FakeBuffer {
   destroyCount = 0;
 
+  readonly size: number;
+
+  constructor(size = 0) {
+    this.size = size;
+  }
+
   destroy() {
     this.destroyCount++;
   }
@@ -70,6 +76,11 @@ export class FakeRenderBundleEncoder {
 }
 
 export class FakeCommandEncoder {
+  copyBufferToBuffer(..._args: unknown[]) {}
+  copyBufferToTexture(..._args: unknown[]) {}
+  copyTextureToBuffer(..._args: unknown[]) {}
+  copyTextureToTexture(..._args: unknown[]) {}
+
   beginRenderPass() {
     return new FakeRenderPassEncoder();
   }
@@ -84,14 +95,16 @@ export class FakeQueue {
   submit(commandBuffers: Iterable<unknown>) {
     this.submitted.push([...commandBuffers]);
   }
+  writeBuffer(..._args: unknown[]) {}
+  writeTexture(..._args: unknown[]) {}
 }
 
 export class FakeDevice {
   readonly queue = new FakeQueue();
   pipelineCreationError?: Error;
 
-  createBuffer(_descriptor: GPUBufferDescriptor) {
-    return new FakeBuffer();
+  createBuffer(descriptor: GPUBufferDescriptor) {
+    return new FakeBuffer(descriptor.size);
   }
   createTexture(_descriptor: GPUTextureDescriptor) {
     return new FakeTexture();

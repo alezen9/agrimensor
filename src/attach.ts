@@ -1,5 +1,6 @@
 import { METRIC_DEFINITIONS } from "./definitions";
-import { instrumentDevice, instrumentQueue } from "./instrumentation/device";
+import { instrumentDevice } from "./instrumentation/device";
+import { instrumentQueue } from "./instrumentation/queue";
 import { RestoreRegistry } from "./patch";
 import { GromaState } from "./state";
 import type {
