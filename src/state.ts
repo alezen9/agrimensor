@@ -1,3 +1,4 @@
+import { ResourceRegistry } from "./resources";
 import type { FrameMetrics } from "./types";
 
 export class FrameCounters {
@@ -22,6 +23,7 @@ export class FrameCounters {
 
 export class GromaState {
   readonly current = new FrameCounters();
+  readonly resources = new ResourceRegistry();
   readonly bundleDrawCounts = new WeakMap<GPURenderBundle, number>();
 
   private startedFrameCount = 0;

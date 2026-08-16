@@ -19,6 +19,15 @@ export type MetricDefinition = {
   readonly caveats: readonly string[];
 };
 
+export type ResourceMetrics = {
+  readonly liveBufferCount: number;
+  readonly liveTextureCount: number;
+  readonly liveBufferAllocationSumInBytes: number;
+  readonly liveTextureAllocationSumInBytes: number;
+  readonly liveResourceAllocationSumInBytes: number;
+  readonly liveResourceAllocationPeakInBytes: number;
+};
+
 export type FrameMetrics = {
   readonly renderedFrameCount: number;
   readonly drawCallCount: number;
@@ -30,6 +39,8 @@ export type FrameMetrics = {
 };
 
 export type Snapshot = {
+  /** Live levels, not flows, so these need no frame boundary and are always present. */
+  readonly resources: ResourceMetrics;
   /**
    * Undefined until two beginRenderFrame() calls have happened: the tick that opens a
    * frame is what closes the previous one, so the first frame is not complete yet.
@@ -41,6 +52,7 @@ export type Snapshot = {
 };
 
 export type Capabilities = {
+  readonly resourceTracking: boolean;
   readonly frameScope: boolean;
 };
 
@@ -48,7 +60,8 @@ type LeafPaths<T, Prefix extends string> = {
   [K in keyof T & string]: `${Prefix}.${K}`;
 }[keyof T & string];
 
-export type MetricPath = LeafPaths<FrameMetrics, "frame">;
+export type MetricPath =
+  LeafPaths<ResourceMetrics, "resources"> | LeafPaths<FrameMetrics, "frame">;
 
 export type Groma = {
   readonly capabilities: Capabilities;

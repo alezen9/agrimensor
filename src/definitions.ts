@@ -6,6 +6,96 @@ const QUANTIZATION_CAVEAT =
 export const METRIC_DEFINITIONS: Readonly<
   Record<MetricPath, MetricDefinition>
 > = {
+  "resources.liveBufferCount": {
+    name: "resources.liveBufferCount",
+    unit: "count",
+    source: "webgpu-api-observation",
+    confidence: "measured",
+    description:
+      "Buffers created through the attached device that Groma has not observed being destroyed.",
+    methodology:
+      "Incremented on createBuffer(), decremented the first time destroy() is called on that buffer.",
+    caveats: [
+      "Buffers created before attach() are not included.",
+      "A buffer released by garbage collection without an explicit destroy() call stays counted, because that release is not observable.",
+    ],
+  },
+  "resources.liveTextureCount": {
+    name: "resources.liveTextureCount",
+    unit: "count",
+    source: "webgpu-api-observation",
+    confidence: "measured",
+    description:
+      "Textures created through the attached device that Groma has not observed being destroyed.",
+    methodology:
+      "Incremented on createTexture(), decremented the first time destroy() is called on that texture.",
+    caveats: [
+      "Textures created before attach() are not included.",
+      "Canvas textures from getCurrentTexture() never appear, since they are not created through createTexture().",
+      "A texture released by garbage collection without an explicit destroy() call stays counted.",
+    ],
+  },
+  "resources.liveBufferAllocationSumInBytes": {
+    name: "resources.liveBufferAllocationSumInBytes",
+    unit: "bytes",
+    source: "gpu-resource-descriptor",
+    confidence: "measured",
+    description:
+      "Sum of the declared sizes of live buffers created through the attached device.",
+    methodology:
+      "The size field of each createBuffer() descriptor, added on creation and subtracted when destruction is observed.",
+    caveats: [
+      "This is not physical GPU memory usage and must not be read as VRAM.",
+      "Excludes browser, driver and implementation-internal allocations, staging buffers, alignment padding and pipeline caches.",
+      "Buffers created before attach() are not included.",
+    ],
+  },
+  "resources.liveTextureAllocationSumInBytes": {
+    name: "resources.liveTextureAllocationSumInBytes",
+    unit: "bytes",
+    source: "gpu-resource-descriptor",
+    confidence: "derived",
+    description:
+      "Sum of the logical allocation of live textures created through the attached device.",
+    methodology:
+      "Per texture, block dimensions and bytes per block for its format are taken from a WebGPU format table, applied across its full declared mip chain, then multiplied by array layers and sample count.",
+    caveats: [
+      "This is a calculation from the descriptor, not a reading from the driver.",
+      "depth24plus, depth24plus-stencil8 and depth32float-stencil8 have implementation-defined storage. Groma models them as 4, 4 and 8 bytes per texel respectively, which matches common Dawn backends but is not reported by the API.",
+      "Multisampled textures are multiplied by sampleCount. Some GPUs compress multisampled surfaces, so real footprint can be lower.",
+      "Assumes the full declared mip chain is allocated.",
+      "This is not physical GPU memory usage and must not be read as VRAM.",
+    ],
+  },
+  "resources.liveResourceAllocationSumInBytes": {
+    name: "resources.liveResourceAllocationSumInBytes",
+    unit: "bytes",
+    source: "derived",
+    confidence: "derived",
+    description:
+      "Live buffer allocation plus live texture allocation, for resources created through the attached device.",
+    methodology:
+      "The sum of resources.liveBufferAllocationSumInBytes and resources.liveTextureAllocationSumInBytes.",
+    caveats: [
+      "Inherits every caveat of the two figures it adds.",
+      "This is not physical GPU memory usage and must not be read as VRAM.",
+    ],
+  },
+  "resources.liveResourceAllocationPeakInBytes": {
+    name: "resources.liveResourceAllocationPeakInBytes",
+    unit: "bytes",
+    source: "derived",
+    confidence: "derived",
+    description:
+      "Highest value resources.liveResourceAllocationSumInBytes has reached since attach.",
+    methodology:
+      "Recomputed and compared against the running maximum each time a resource is created.",
+    caveats: [
+      "Only sampled on creation, so a peak reached between two creations is not captured.",
+      "Never decreases while the instance is attached.",
+      "Inherits every caveat of the figure it tracks.",
+    ],
+  },
   "frame.renderedFrameCount": {
     name: "frame.renderedFrameCount",
     unit: "count",

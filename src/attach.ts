@@ -14,7 +14,10 @@ const attachedDevices = new WeakSet<GPUDevice>();
 
 class GromaInstance implements Groma {
   // returned live so a consumer holding it sees frameScope flip on the first marked frame
-  private readonly detectedCapabilities = { frameScope: false };
+  private readonly detectedCapabilities = {
+    resourceTracking: true,
+    frameScope: false,
+  };
 
   private readonly state = new GromaState();
   private readonly registry = new RestoreRegistry();
@@ -39,8 +42,9 @@ class GromaInstance implements Groma {
 
   snapshot(): Snapshot {
     this.assertUsable();
+    const resources = this.state.resources.toMetrics();
     const frame = this.state.getPublishedFrame();
-    return frame ? { frame } : {};
+    return frame ? { resources, frame } : { resources };
   }
 
   describe(metric: MetricPath): MetricDefinition {

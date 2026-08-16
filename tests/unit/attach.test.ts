@@ -186,18 +186,25 @@ describe("counters", () => {
   });
 });
 
+const snapshotMetricPaths = () => {
+  const groma = attach(asDevice(new FakeDevice()));
+  groma.beginRenderFrame();
+  groma.beginRenderFrame();
+
+  const { resources, frame } = groma.snapshot();
+  expect(frame).toBeDefined();
+
+  return [
+    ...Object.keys(resources).map((key) => `resources.${key}`),
+    ...Object.keys(frame ?? {}).map((key) => `frame.${key}`),
+  ] as MetricPath[];
+};
+
 describe("describe", () => {
-  it("has a definition for every metric a snapshot exposes", () => {
-    const device = new FakeDevice();
-    const groma = attach(asDevice(device));
-    groma.beginRenderFrame();
-    groma.beginRenderFrame();
+  it("has a complete definition for every metric a snapshot exposes", () => {
+    const groma = attach(asDevice(new FakeDevice()));
 
-    const { frame } = groma.snapshot();
-    expect(frame).toBeDefined();
-
-    for (const key of Object.keys(frame ?? {})) {
-      const path = `frame.${key}` as MetricPath;
+    for (const path of snapshotMetricPaths()) {
       const definition = groma.describe(path);
 
       expect(definition.name).toBe(path);
@@ -207,16 +214,9 @@ describe("describe", () => {
     }
   });
 
-  it("exposes no definition without a matching metric", () => {
-    const groma = attach(asDevice(new FakeDevice()));
-    groma.beginRenderFrame();
-    groma.beginRenderFrame();
-
-    const frameKeys = Object.keys(groma.snapshot().frame ?? {});
-    const definedPaths = Object.keys(METRIC_DEFINITIONS);
-
-    expect(definedPaths.sort()).toEqual(
-      frameKeys.map((key) => `frame.${key}`).sort(),
+  it("defines nothing that a snapshot does not expose", () => {
+    expect(Object.keys(METRIC_DEFINITIONS).sort()).toEqual(
+      snapshotMetricPaths().sort(),
     );
   });
 });

@@ -2,12 +2,42 @@ import { patchMethod, type RestoreRegistry } from "../patch";
 import type { GromaState } from "../state";
 import { instrumentCommandEncoder } from "./commandEncoder";
 import { instrumentRenderBundleEncoder } from "./passes";
+import { calculateTextureAllocationBytes } from "../textureBytes";
 
 export const instrumentDevice = (
   device: GPUDevice,
   state: GromaState,
   registry: RestoreRegistry,
 ) => {
+  registry.add(
+    patchMethod(
+      device,
+      "createBuffer",
+      (original) =>
+        function (this: GPUDevice, descriptor: GPUBufferDescriptor) {
+          const buffer = original.call(this, descriptor);
+          state.resources.trackBuffer(buffer, descriptor.size);
+          return buffer;
+        },
+    ),
+  );
+
+  registry.add(
+    patchMethod(
+      device,
+      "createTexture",
+      (original) =>
+        function (this: GPUDevice, descriptor: GPUTextureDescriptor) {
+          const texture = original.call(this, descriptor);
+          state.resources.trackTexture(
+            texture,
+            calculateTextureAllocationBytes(descriptor),
+          );
+          return texture;
+        },
+    ),
+  );
+
   registry.add(
     patchMethod(
       device,

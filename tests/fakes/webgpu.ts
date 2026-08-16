@@ -12,6 +12,22 @@
 
 export class FakeRenderBundle {}
 
+export class FakeBuffer {
+  destroyCount = 0;
+
+  destroy() {
+    this.destroyCount++;
+  }
+}
+
+export class FakeTexture {
+  destroyCount = 0;
+
+  destroy() {
+    this.destroyCount++;
+  }
+}
+
 export class FakeRenderPassEncoder {
   readonly calls: string[] = [];
 
@@ -74,6 +90,12 @@ export class FakeDevice {
   readonly queue = new FakeQueue();
   pipelineCreationError?: Error;
 
+  createBuffer(_descriptor: GPUBufferDescriptor) {
+    return new FakeBuffer();
+  }
+  createTexture(_descriptor: GPUTextureDescriptor) {
+    return new FakeTexture();
+  }
   createCommandEncoder() {
     return new FakeCommandEncoder();
   }
