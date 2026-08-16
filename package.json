@@ -1,0 +1,48 @@
+{
+  "name": "groma",
+  "version": "0.1.0-alpha.0",
+  "description": "Headless WebGPU metrics with explicit measurement semantics.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alezen9/groma"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "webgpu",
+    "metrics",
+    "profiling",
+    "gpu",
+    "performance",
+    "timestamp-query",
+    "typescript"
+  ],
+  "author": "Aleksandar Gjoreski",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run --passWithNoTests",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.71",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
