@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -56,7 +56,7 @@ jobs:
           tag="$(git tag --points-at "${GITHUB_SHA}" | grep -E '^v' | head -n 1 || true)"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.tag.outputs.tag != ''
         with:
           node-version: 24
