@@ -4,7 +4,7 @@
   "description": "Headless WebGPU metrics with explicit measurement semantics.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alezen9/groma"
+    "url": "git+https://github.com/alezen9/groma.git"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -36,7 +36,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
