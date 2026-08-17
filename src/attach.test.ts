@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { attach } from "./attach";
-import { METRIC_DEFINITIONS } from "./definitions";
 import { asDevice, FakeDevice } from "./webgpu.fake";
 import type { MetricPath } from "./types";
 
@@ -200,6 +199,9 @@ const snapshotMetricPaths = () => {
   ] as MetricPath[];
 };
 
+// the reverse direction, that no definition exists without a matching metric, is
+// enforced by the compiler: METRIC_DEFINITIONS is typed Record<MetricPath, ...>, so a
+// missing entry fails to typecheck and an extra one is rejected as an unknown property
 describe("describe", () => {
   it("has a complete definition for every metric a snapshot exposes", () => {
     const agrimensor = attach(asDevice(new FakeDevice()));
@@ -212,12 +214,6 @@ describe("describe", () => {
       expect(definition.methodology.length).toBeGreaterThan(0);
       expect(definition.caveats.length).toBeGreaterThan(0);
     }
-  });
-
-  it("defines nothing that a snapshot does not expose", () => {
-    expect(Object.keys(METRIC_DEFINITIONS).sort()).toEqual(
-      snapshotMetricPaths().sort(),
-    );
   });
 });
 

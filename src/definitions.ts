@@ -3,6 +3,15 @@ import type { MetricDefinition, MetricPath } from "./types";
 const QUANTIZATION_CAVEAT =
   "Browsers coarsen performance.now() for security, so very short durations are quantized.";
 
+const QUANTUM_CAVEAT =
+  "Chrome reports timestamps in multiples of 65.536 microseconds unless the WebGPU developer features flag is enabled, so durations are quantised to that granularity and gaps shorter than it are invisible.";
+
+const CLOCK_DRIFT_CAVEAT =
+  "Absolute durations shift with GPU frequency scaling, so figures are only comparable within a single session.";
+
+const SUBMITTED_CAVEAT =
+  "Covers passes submitted during that frame. GPU and CPU clocks cannot be aligned, so this is not the frame the work executed in.";
+
 export const METRIC_DEFINITIONS: Readonly<
   Record<MetricPath, MetricDefinition>
 > = {
@@ -229,6 +238,100 @@ export const METRIC_DEFINITIONS: Readonly<
       "Excludes createRenderPipelineAsync and createComputePipelineAsync, which do not block. Those still appear in frame.pipelineCreationCount.",
       "Implementations may defer real compilation, so a small value here does not prove compilation was cheap.",
       QUANTIZATION_CAVEAT,
+    ],
+  },
+  "gpu.resultLagFrameCount": {
+    name: "gpu.resultLagFrameCount",
+    unit: "count",
+    source: "derived",
+    confidence: "derived",
+    description:
+      "How many rendered frames back the gpu figures in this snapshot describe.",
+    methodology:
+      "The current beginRenderFrame() count minus the frame number attached to the timestamp batch that most recently finished reading back.",
+    caveats: [
+      "Timestamp results are read back asynchronously, so gpu figures always describe an earlier frame than the frame group does.",
+      "The value grows if readback is slow, and no figure is ever relabelled to the current frame.",
+    ],
+  },
+  "gpu.submittedRenderPassDurationSumInMs": {
+    name: "gpu.submittedRenderPassDurationSumInMs",
+    unit: "ms",
+    source: "webgpu-timestamp-query",
+    confidence: "measured",
+    description:
+      "Sum of the GPU durations of every render pass submitted during that frame.",
+    methodology:
+      "Each render pass is given a timestamp pair through its descriptor. Every pass duration is end minus beginning, and those durations are added together.",
+    caveats: [
+      "Passes execute concurrently on the GPU, so overlapping time is counted once per pass. This sum can therefore exceed the real elapsed GPU time, measured at over twice the actual span on a mixed workload.",
+      "Use gpu.submittedRenderAndComputePassExecutionInMs for time actually spent.",
+      SUBMITTED_CAVEAT,
+      QUANTUM_CAVEAT,
+      CLOCK_DRIFT_CAVEAT,
+    ],
+  },
+  "gpu.submittedComputePassDurationSumInMs": {
+    name: "gpu.submittedComputePassDurationSumInMs",
+    unit: "ms",
+    source: "webgpu-timestamp-query",
+    confidence: "measured",
+    description:
+      "Sum of the GPU durations of every compute pass submitted during that frame.",
+    methodology:
+      "Each compute pass is given a timestamp pair through its descriptor. Every pass duration is end minus beginning, and those durations are added together.",
+    caveats: [
+      "Passes execute concurrently on the GPU, so overlapping time is counted once per pass and this sum can exceed the real elapsed GPU time.",
+      SUBMITTED_CAVEAT,
+      QUANTUM_CAVEAT,
+      CLOCK_DRIFT_CAVEAT,
+    ],
+  },
+  "gpu.submittedRenderAndComputePassExecutionInMs": {
+    name: "gpu.submittedRenderAndComputePassExecutionInMs",
+    unit: "ms",
+    source: "webgpu-timestamp-query",
+    confidence: "derived",
+    description:
+      "GPU time actually spent executing passes submitted during that frame, counting concurrent passes once.",
+    methodology:
+      "The begin and end timestamps of every render and compute pass in the frame are merged into non-overlapping intervals, and the lengths of those merged intervals are added. Time when two or more passes ran at once is counted a single time, which is what distinguishes this from the duration sums.",
+    caveats: [
+      "Covers render and compute passes only. Buffer and texture copies, queue writes, clears and browser compositing are not passes and cannot carry timestamps, so they are excluded.",
+      "Adding this to gpu.submittedRenderAndComputePassGapSumInMs gives the elapsed GPU time from the frame's first pass beginning to its last pass ending.",
+      SUBMITTED_CAVEAT,
+      QUANTUM_CAVEAT,
+      CLOCK_DRIFT_CAVEAT,
+    ],
+  },
+  "gpu.submittedRenderAndComputePassGapSumInMs": {
+    name: "gpu.submittedRenderAndComputePassGapSumInMs",
+    unit: "ms",
+    source: "webgpu-timestamp-query",
+    confidence: "derived",
+    description:
+      "GPU time inside that frame's pass window during which no pass was executing.",
+    methodology:
+      "The elapsed span from the earliest pass beginning to the latest pass ending, minus gpu.submittedRenderAndComputePassExecutionInMs. Both figures come from the same merged intervals, so this is the total length of the holes between them.",
+    caveats: [
+      "This is not purely idle time. It also contains GPU work that cannot carry a timestamp, such as buffer and texture copies encoded between passes. When frame.commandCopySumInBytes is zero for the same frame, the value is genuine idle.",
+      "Measured between the first and last pass of the frame only, so it says nothing about time before or after that window.",
+      QUANTUM_CAVEAT,
+      CLOCK_DRIFT_CAVEAT,
+    ],
+  },
+  "gpu.uninstrumentedPassCount": {
+    name: "gpu.uninstrumentedPassCount",
+    unit: "count",
+    source: "webgpu-api-observation",
+    confidence: "measured",
+    description:
+      "Passes in that frame that agrimensor could not time, and which are therefore missing from every gpu figure above.",
+    methodology:
+      "Counted when a pass descriptor already carries timestampWrites, since a descriptor holds only one and the application's own profiling is never overwritten, or when the frame's timestamp slots are exhausted.",
+    caveats: [
+      "Zero is the healthy value. Any non-zero value means the gpu durations are partial, which is the only signal that they undercount.",
+      "A rendering engine with its own timestamp profiling enabled will drive this above zero.",
     ],
   },
 };

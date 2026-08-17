@@ -3,9 +3,11 @@ import { instrumentDevice } from "./instrumentation/device";
 import { instrumentQueue } from "./instrumentation/queue";
 import { RestoreRegistry } from "./patch";
 import { AgrimensorState } from "./state";
+import { TimestampRecorder } from "./timestamps";
 import type {
   Capabilities,
   Agrimensor,
+  GpuMetrics,
   MetricDefinition,
   MetricPath,
   Snapshot,
@@ -18,6 +20,8 @@ class AgrimensorInstance implements Agrimensor {
   private readonly detectedCapabilities = {
     resourceTracking: true,
     frameScope: false,
+    timestampQueries: false,
+    crossSubmissionTimestampsComparable: true,
   };
 
   private readonly state = new AgrimensorState();
@@ -27,6 +31,12 @@ class AgrimensorInstance implements Agrimensor {
 
   constructor(device: GPUDevice) {
     this.device = device;
+    // the recorder is created before instrumentation so its own query set and
+    // buffers are not counted as consumer resources
+    const recorder = new TimestampRecorder(device);
+    this.state.timestamps = recorder;
+    this.detectedCapabilities.timestampQueries = recorder.isSupported;
+
     instrumentDevice(device, this.state, this.registry);
     instrumentQueue(device.queue, this.state, this.registry);
   }
@@ -39,13 +49,24 @@ class AgrimensorInstance implements Agrimensor {
     this.assertUsable();
     this.detectedCapabilities.frameScope = true;
     this.state.beginRenderFrame();
+
+    const recorder = this.state.timestamps;
+    if (!recorder) return;
+
+    recorder.rotate(this.state.getStartedFrameCount());
+    this.detectedCapabilities.crossSubmissionTimestampsComparable =
+      recorder.isCrossSubmissionComparable;
   }
 
   snapshot(): Snapshot {
     this.assertUsable();
     const resources = this.state.resources.toMetrics();
     const frame = this.state.getPublishedFrame();
-    return frame ? { resources, frame } : { resources };
+    const gpu = this.toGpuMetrics();
+
+    if (frame && gpu) return { resources, frame, gpu };
+    if (frame) return { resources, frame };
+    return { resources };
   }
 
   describe(metric: MetricPath): MetricDefinition {
@@ -57,8 +78,27 @@ class AgrimensorInstance implements Agrimensor {
   destroy() {
     if (this.isDestroyed) return;
     this.isDestroyed = true;
+    this.state.timestamps?.destroy();
     this.registry.runAll();
     attachedDevices.delete(this.device);
+  }
+
+  private toGpuMetrics(): GpuMetrics | undefined {
+    const recorder = this.state.timestamps;
+    const latest = recorder?.getLatest();
+    if (!recorder || !latest || !recorder.isCrossSubmissionComparable) {
+      return undefined;
+    }
+
+    return {
+      resultLagFrameCount:
+        this.state.getStartedFrameCount() - latest.frameNumber,
+      submittedRenderPassDurationSumInMs: latest.renderPassDurationSumInMs,
+      submittedComputePassDurationSumInMs: latest.computePassDurationSumInMs,
+      submittedRenderAndComputePassExecutionInMs: latest.executionInMs,
+      submittedRenderAndComputePassGapSumInMs: latest.gapSumInMs,
+      uninstrumentedPassCount: recorder.uninstrumentedPassCount,
+    };
   }
 
   private assertUsable() {

@@ -1,4 +1,5 @@
 import { ResourceRegistry } from "./resources";
+import type { TimestampRecorder } from "./timestamps";
 import type { FrameMetrics } from "./types";
 
 export class FrameCounters {
@@ -28,6 +29,7 @@ export class FrameCounters {
 export class AgrimensorState {
   readonly current = new FrameCounters();
   readonly resources = new ResourceRegistry();
+  timestamps?: TimestampRecorder;
   readonly bundleDrawCounts = new WeakMap<GPURenderBundle, number>();
 
   private startedFrameCount = 0;
@@ -40,6 +42,10 @@ export class AgrimensorState {
     }
     this.startedFrameCount++;
     this.current.reset();
+  }
+
+  getStartedFrameCount() {
+    return this.startedFrameCount;
   }
 
   getPublishedFrame() {

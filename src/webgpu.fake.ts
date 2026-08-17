@@ -99,10 +99,28 @@ export class FakeQueue {
   writeTexture(..._args: unknown[]) {}
 }
 
+export class FakeQuerySet {
+  destroyed = false;
+
+  destroy() {
+    this.destroyed = true;
+  }
+}
+
 export class FakeDevice {
   readonly queue = new FakeQueue();
+  // empty by default, so the timestamp recorder reports unsupported and the
+  // resource and counter tests exercise the path most devices without the
+  // feature would take
+  readonly features = new Set<string>();
+  readonly querySets: FakeQuerySet[] = [];
   pipelineCreationError?: Error;
 
+  createQuerySet(_descriptor: GPUQuerySetDescriptor) {
+    const querySet = new FakeQuerySet();
+    this.querySets.push(querySet);
+    return querySet;
+  }
   createBuffer(descriptor: GPUBufferDescriptor) {
     return new FakeBuffer(descriptor.size);
   }

@@ -41,6 +41,15 @@ export type FrameMetrics = {
   readonly pipelineCreationBlockingDurationSumInMs: number;
 };
 
+export type GpuMetrics = {
+  readonly resultLagFrameCount: number;
+  readonly submittedRenderPassDurationSumInMs: number;
+  readonly submittedComputePassDurationSumInMs: number;
+  readonly submittedRenderAndComputePassExecutionInMs: number;
+  readonly submittedRenderAndComputePassGapSumInMs: number;
+  readonly uninstrumentedPassCount: number;
+};
+
 export type Snapshot = {
   /** Live levels, not flows, so these need no frame boundary and are always present. */
   readonly resources: ResourceMetrics;
@@ -52,11 +61,20 @@ export type Snapshot = {
    * any app that renders on a divisor.
    */
   readonly frame?: FrameMetrics;
+  /**
+   * Timestamp results arrive several frames after the work they measure, so this
+   * describes an older frame than `frame` does. resultLagFrameCount says how many
+   * frames back. Undefined when the device lacks timestamp-query, when no frame has
+   * resolved yet, or when the timestamps proved not to share a timeline.
+   */
+  readonly gpu?: GpuMetrics;
 };
 
 export type Capabilities = {
   readonly resourceTracking: boolean;
   readonly frameScope: boolean;
+  readonly timestampQueries: boolean;
+  readonly crossSubmissionTimestampsComparable: boolean;
 };
 
 type LeafPaths<T, Prefix extends string> = {
@@ -64,7 +82,9 @@ type LeafPaths<T, Prefix extends string> = {
 }[keyof T & string];
 
 export type MetricPath =
-  LeafPaths<ResourceMetrics, "resources"> | LeafPaths<FrameMetrics, "frame">;
+  | LeafPaths<ResourceMetrics, "resources">
+  | LeafPaths<FrameMetrics, "frame">
+  | LeafPaths<GpuMetrics, "gpu">;
 
 export type Agrimensor = {
   readonly capabilities: Capabilities;
