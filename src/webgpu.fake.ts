@@ -15,6 +15,7 @@ export class FakeRenderBundle {}
 export class FakeBuffer {
   destroyCount = 0;
   mapped?: ArrayBuffer;
+  mapRejection: Error | undefined;
 
   readonly size: number;
 
@@ -22,7 +23,9 @@ export class FakeBuffer {
     this.size = size;
   }
 
-  async mapAsync() {}
+  async mapAsync() {
+    if (this.mapRejection) throw this.mapRejection;
+  }
 
   getMappedRange(offset = 0, size = this.size) {
     this.mapped ??= new ArrayBuffer(this.size);
@@ -142,6 +145,9 @@ export class FakeDevice {
   // resource and counter tests exercise the path most devices without the
   // feature would take
   readonly features = new Set<string>();
+  // set before attach to simulate a device that fails partway through
+  encoderFailure: Error | undefined;
+  mapRejection: Error | undefined;
   readonly querySets: FakeQuerySet[] = [];
   readonly encoders: FakeCommandEncoder[] = [];
   pipelineCreationError?: Error;
@@ -152,12 +158,15 @@ export class FakeDevice {
     return querySet;
   }
   createBuffer(descriptor: GPUBufferDescriptor) {
-    return new FakeBuffer(descriptor.size);
+    const buffer = new FakeBuffer(descriptor.size);
+    if (this.mapRejection) buffer.mapRejection = this.mapRejection;
+    return buffer;
   }
   createTexture(_descriptor: GPUTextureDescriptor) {
     return new FakeTexture();
   }
   createCommandEncoder() {
+    if (this.encoderFailure) throw this.encoderFailure;
     const encoder = new FakeCommandEncoder();
     this.encoders.push(encoder);
     return encoder;

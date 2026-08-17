@@ -200,6 +200,18 @@ export class TimestampRecorder {
     this.activeRegion = undefined;
     if (!region || region.passes.length === 0) return;
 
+    try {
+      this.resolveRegion(region);
+    } catch {
+      // a lost device, or anything else going wrong inside our own bookkeeping,
+      // must never propagate into the caller's render loop. Timing simply stops
+      // producing figures, which shows up as gpu going undefined, and later frames
+      // keep trying in case the fault was transient.
+      region.isPending = false;
+    }
+  }
+
+  private resolveRegion(region: Region) {
     const queryCount = region.passes.length * 2;
     const bytes = queryCount * BYTES_PER_QUERY;
     const regionIndex = region.slotBase / PASSES_PER_REGION;

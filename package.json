@@ -1,6 +1,6 @@
 {
   "name": "agrimensor",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Headless WebGPU metrics with explicit measurement semantics.",
   "repository": {
     "type": "git",
@@ -40,7 +40,8 @@
     "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build",
     "spike": "node spike/run.mjs index.html",
     "bench": "npm run build && node spike/run.mjs bench.html",
-    "soak": "npm run build && node spike/run.mjs soak.html"
+    "soak": "npm run build && node spike/run.mjs soak.html",
+    "check:size": "node scripts/check-size.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
