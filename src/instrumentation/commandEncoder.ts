@@ -21,13 +21,13 @@ const withTimestamps = <T extends { timestampWrites?: unknown }>(
   if (!recorder?.isSupported) return descriptor;
 
   if (descriptor.timestampWrites) {
-    recorder.uninstrumentedPassCount++;
+    recorder.countUninstrumentedPass();
     return descriptor;
   }
 
   const timestampWrites = recorder.claimPass(kind);
   if (!timestampWrites) {
-    recorder.uninstrumentedPassCount++;
+    recorder.countUninstrumentedPass();
     return descriptor;
   }
 

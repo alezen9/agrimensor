@@ -1,6 +1,6 @@
 {
   "name": "agrimensor",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Headless WebGPU metrics with explicit measurement semantics.",
   "repository": {
     "type": "git",

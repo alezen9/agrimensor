@@ -14,12 +14,22 @@ export class FakeRenderBundle {}
 
 export class FakeBuffer {
   destroyCount = 0;
+  mapped?: ArrayBuffer;
 
   readonly size: number;
 
   constructor(size = 0) {
     this.size = size;
   }
+
+  async mapAsync() {}
+
+  getMappedRange(offset = 0, size = this.size) {
+    this.mapped ??= new ArrayBuffer(this.size);
+    return this.mapped.slice(offset, offset + size);
+  }
+
+  unmap() {}
 
   destroy() {
     this.destroyCount++;
@@ -76,15 +86,24 @@ export class FakeRenderBundleEncoder {
 }
 
 export class FakeCommandEncoder {
+  lastRenderPassDescriptor: { timestampWrites?: unknown } | undefined;
+  lastComputePassDescriptor: { timestampWrites?: unknown } | undefined;
+
+  resolveQuerySet(..._args: unknown[]) {}
+  finish() {
+    return { kind: "command-buffer" };
+  }
   copyBufferToBuffer(..._args: unknown[]) {}
   copyBufferToTexture(..._args: unknown[]) {}
   copyTextureToBuffer(..._args: unknown[]) {}
   copyTextureToTexture(..._args: unknown[]) {}
 
-  beginRenderPass() {
+  beginRenderPass(descriptor?: { timestampWrites?: unknown }) {
+    this.lastRenderPassDescriptor = descriptor;
     return new FakeRenderPassEncoder();
   }
-  beginComputePass() {
+  beginComputePass(descriptor?: { timestampWrites?: unknown }) {
+    this.lastComputePassDescriptor = descriptor;
     return new FakeComputePassEncoder();
   }
 }
@@ -99,6 +118,11 @@ export class FakeQueue {
   writeTexture(..._args: unknown[]) {}
 }
 
+/**
+ * Enough of a query set and mappable buffer to drive TimestampRecorder end to end.
+ * Timestamps are supplied by the test rather than a GPU, so the recorder's slot
+ * bookkeeping and readback path can be checked against known values.
+ */
 export class FakeQuerySet {
   destroyed = false;
 
@@ -107,6 +131,11 @@ export class FakeQuerySet {
   }
 }
 
+export const withTimestampSupport = (device: FakeDevice) => {
+  device.features.add("timestamp-query");
+  return device;
+};
+
 export class FakeDevice {
   readonly queue = new FakeQueue();
   // empty by default, so the timestamp recorder reports unsupported and the
@@ -114,6 +143,7 @@ export class FakeDevice {
   // feature would take
   readonly features = new Set<string>();
   readonly querySets: FakeQuerySet[] = [];
+  readonly encoders: FakeCommandEncoder[] = [];
   pipelineCreationError?: Error;
 
   createQuerySet(_descriptor: GPUQuerySetDescriptor) {
@@ -128,7 +158,9 @@ export class FakeDevice {
     return new FakeTexture();
   }
   createCommandEncoder() {
-    return new FakeCommandEncoder();
+    const encoder = new FakeCommandEncoder();
+    this.encoders.push(encoder);
+    return encoder;
   }
   createRenderBundleEncoder() {
     return new FakeRenderBundleEncoder();

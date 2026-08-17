@@ -97,7 +97,7 @@ class AgrimensorInstance implements Agrimensor {
       submittedComputePassDurationSumInMs: latest.computePassDurationSumInMs,
       submittedRenderAndComputePassExecutionInMs: latest.executionInMs,
       submittedRenderAndComputePassGapSumInMs: latest.gapSumInMs,
-      uninstrumentedPassCount: recorder.uninstrumentedPassCount,
+      uninstrumentedPassCount: latest.uninstrumentedPassCount,
     };
   }
 

@@ -23,5 +23,5 @@
     "erasableSyntaxOnly": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "vitest.config.ts", "vitest.setup.ts"]
 }

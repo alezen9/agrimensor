@@ -6,6 +6,7 @@ export type ResolvedTiming = {
   readonly computePassDurationSumInMs: number;
   readonly executionInMs: number;
   readonly gapSumInMs: number;
+  readonly uninstrumentedPassCount: number;
 };
 
 type PassRecord = { slot: number; kind: PassKind };
@@ -15,6 +16,7 @@ type Region = {
   readonly readback: GPUBuffer;
   passes: PassRecord[];
   frameNumber: number;
+  uninstrumentedPassCount: number;
   isPending: boolean;
 };
 
@@ -60,7 +62,11 @@ export const mergeIntervals = (intervals: { begin: number; end: number }[]) => {
 export class TimestampRecorder {
   readonly isSupported: boolean;
   isCrossSubmissionComparable = true;
-  uninstrumentedPassCount = 0;
+
+  // counts the frame currently being recorded. It is captured into the region when
+  // that frame closes, so the published figure always describes the same frame as
+  // the durations beside it rather than the frame in progress.
+  private pendingUninstrumentedPassCount = 0;
 
   private readonly device: GPUDevice;
   // captured before instrumentation so agrimensor's own resolve submissions never
@@ -98,6 +104,7 @@ export class TimestampRecorder {
         }),
         passes: [],
         frameNumber: 0,
+        uninstrumentedPassCount: 0,
         isPending: false,
       });
     }
@@ -108,7 +115,7 @@ export class TimestampRecorder {
     if (!this.isSupported || this.isDestroyed) return;
 
     this.closeActiveRegion();
-    this.uninstrumentedPassCount = 0;
+    this.pendingUninstrumentedPassCount = 0;
 
     const candidate = this.regions.find((region) => !region.isPending);
     if (!candidate) return;
@@ -122,6 +129,10 @@ export class TimestampRecorder {
    * Returns writes to inject into a pass descriptor, or undefined when this pass
    * cannot be instrumented, which the caller reports as an uninstrumented pass.
    */
+  countUninstrumentedPass() {
+    this.pendingUninstrumentedPassCount++;
+  }
+
   claimPass(kind: PassKind): GPURenderPassTimestampWrites | undefined {
     const region = this.activeRegion;
     if (!region || this.isDestroyed) return undefined;
@@ -153,6 +164,8 @@ export class TimestampRecorder {
     const region = this.activeRegion;
     this.activeRegion = undefined;
     if (!region || region.passes.length === 0) return;
+
+    region.uninstrumentedPassCount = this.pendingUninstrumentedPassCount;
 
     const queryCount = region.passes.length * 2;
     const bytes = queryCount * BYTES_PER_QUERY;
@@ -227,6 +240,7 @@ export class TimestampRecorder {
       computePassDurationSumInMs: computeNs / 1e6,
       executionInMs: executionNs / 1e6,
       gapSumInMs: (spanNs - executionNs) / 1e6,
+      uninstrumentedPassCount: region.uninstrumentedPassCount,
     };
   }
 }
