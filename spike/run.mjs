@@ -5,14 +5,21 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, extname } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const TYPES = { ".html": "text/html", ".js": "text/javascript" };
+const pageName = process.argv[2] ?? "index.html";
+const TYPES = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".mjs": "text/javascript",
+};
 
 // served over localhost rather than file://, so module imports are not blocked by
 // CORS and the page still counts as a secure context for WebGPU
 const server = createServer(async (request, response) => {
-  const path = request.url === "/" ? "/index.html" : (request.url ?? "/");
+  const path = request.url === "/" ? `/${pageName}` : (request.url ?? "/");
   try {
-    const body = await readFile(join(here, path));
+    // dist sits above the spike directory so the benchmark imports the built artifact
+    const root = path.startsWith("/dist/") ? join(here, "..") : here;
+    const body = await readFile(join(root, path));
     response.writeHead(200, {
       "content-type": TYPES[extname(path)] ?? "application/octet-stream",
     });
@@ -45,7 +52,7 @@ page.on("console", (m) => {
 });
 page.on("pageerror", (e) => console.error("[page error]", e.message));
 
-await page.goto(`http://127.0.0.1:${port}/index.html`);
+await page.goto(`http://127.0.0.1:${port}/${pageName}`);
 await page.waitForFunction(() => window.__spike !== undefined, null, {
   timeout: 120000,
 });
@@ -59,7 +66,4 @@ if (!result.ok) {
   process.exit(1);
 }
 
-const { adapter, summary, followUps } = result.report;
-console.log("\nadapter:", JSON.stringify(adapter));
-console.log("\nsummary:", JSON.stringify(summary, null, 2));
-console.log("\nfollow-ups:", JSON.stringify(followUps, null, 2));
+console.log(JSON.stringify(result.report, null, 2));

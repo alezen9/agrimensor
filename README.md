@@ -129,6 +129,16 @@ measured wrong. You know where your frame is, so you declare it. Without
 `beginRenderFrame()`, per frame metrics are `undefined` and `capabilities.frameScope` is
 `false`, rather than quietly wrong.
 
+## Measured overhead
+
+**0.013 ms of CPU per frame** on a frame with 900 draw calls, 6 render passes, 1 compute pass
+and 1 submit, which is 0.16% of a 120fps budget. Per intercepted call: `draw()` +14ns,
+`beginRenderPass()` +593ns, `createBuffer()` +110ns, `queue.submit()` +1900ns, plus one extra
+submit per frame to resolve timestamps.
+
+Measured on an Apple M2 Pro with `npm run bench`, against the built artifact. No zero-overhead
+claim is made. Method and caveats are in `spike/BENCHMARK.md`.
+
 ## What it cannot measure
 
 These are properties of WebGPU, not omissions.
@@ -153,6 +163,9 @@ These are properties of WebGPU, not omissions.
 - **Physical GPU memory.** Agrimensor reports logical allocation requested through WebGPU. It does
   not know driver residency, alignment padding, or implementation internal allocations, and
   will not call any of its numbers VRAM.
+- **Anything on a backend other than Metal.** Every figure in this README, including the
+  timestamp behaviour and the overhead numbers, was measured on Dawn over Metal on Apple
+  Silicon. D3D12 and Vulkan are untested.
 - **Resources it never saw.** Anything created before `attach()`, canvas textures from
   `getCurrentTexture()`, and resources released by garbage collection without an explicit
   `destroy()`.
