@@ -17,7 +17,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Incremented on createBuffer(), decremented the first time destroy() is called on that buffer.",
     caveats: [
       "Buffers created before attach() are not included.",
-      "A buffer released by garbage collection without an explicit destroy() call stays counted, because that release is not observable.",
+      "A buffer released by garbage collection without an explicit destroy() call stays counted, because that release is not observable. Read this as buffers created and not explicitly destroyed, which can drift upward over a long session.",
     ],
   },
   "resources.liveTextureCount": {
@@ -32,7 +32,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Textures created before attach() are not included.",
       "Canvas textures from getCurrentTexture() never appear, since they are not created through createTexture().",
-      "A texture released by garbage collection without an explicit destroy() call stays counted.",
+      "A texture released by garbage collection without an explicit destroy() call stays counted. Read this as textures created and not explicitly destroyed, which can drift upward over a long session.",
     ],
   },
   "resources.liveBufferAllocationSumInBytes": {
@@ -159,6 +159,20 @@ export const METRIC_DEFINITIONS: Readonly<
       "Counted on every beginComputePass() call on command encoders created through the attached device.",
     caveats: ["Counts passes begun, not passes that completed successfully."],
   },
+  "frame.gpuSubmissionCount": {
+    name: "frame.gpuSubmissionCount",
+    unit: "count",
+    source: "webgpu-api-observation",
+    confidence: "measured",
+    description:
+      "Times work was handed to the GPU queue during this frame, via queue.submit().",
+    methodology:
+      "Counted on every submit() call on the attached device's queue. Submissions Groma makes for its own bookkeeping are excluded.",
+    caveats: [
+      "Counts submit() calls, not command buffers. One submission can carry several.",
+      "A rendering engine may split one rendered frame across several submissions.",
+    ],
+  },
   "frame.queueWriteSumInBytes": {
     name: "frame.queueWriteSumInBytes",
     unit: "bytes",
@@ -193,12 +207,12 @@ export const METRIC_DEFINITIONS: Readonly<
     source: "webgpu-api-observation",
     confidence: "measured",
     description:
-      "Render and compute pipelines created synchronously during this frame.",
+      "Render and compute pipelines requested during this frame, synchronous and asynchronous alike.",
     methodology:
-      "Counted on createRenderPipeline() and createComputePipeline(). Creation that throws is still counted.",
+      "Counted on createRenderPipeline(), createComputePipeline() and their Async variants. Async creation is counted when requested, not when it resolves. Creation that throws is still counted.",
     caveats: [
       "Steady state should be zero. A non-zero value mid-run means pipelines are being built during rendering.",
-      "The async variants are not counted, since their cost does not block the calling frame.",
+      "Only the synchronous variants contribute to frame.pipelineCreationBlockingDurationSumInMs, so a frame can show creations with no blocking time.",
     ],
   },
   "frame.pipelineCreationBlockingDurationSumInMs": {
@@ -212,6 +226,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "performance.now() bracketing each createRenderPipeline() and createComputePipeline() call, summed over the frame.",
     caveats: [
       "This is blocking time on the calling thread, not GPU time and not total shader compilation cost.",
+      "Excludes createRenderPipelineAsync and createComputePipelineAsync, which do not block. Those still appear in frame.pipelineCreationCount.",
       "Implementations may defer real compilation, so a small value here does not prove compilation was cheap.",
       QUANTIZATION_CAVEAT,
     ],

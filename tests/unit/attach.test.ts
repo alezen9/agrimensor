@@ -220,3 +220,44 @@ describe("describe", () => {
     );
   });
 });
+
+describe("pipeline creation", () => {
+  it("counts async pipeline creation, which three uses during compileAsync", async () => {
+    const device = new FakeDevice();
+    const groma = attach(asDevice(device));
+
+    groma.beginRenderFrame();
+    await device.createRenderPipelineAsync({} as GPURenderPipelineDescriptor);
+    await device.createComputePipelineAsync({} as GPUComputePipelineDescriptor);
+    groma.beginRenderFrame();
+
+    expect(groma.snapshot().frame?.pipelineCreationCount).toBe(2);
+  });
+
+  it("keeps async creation out of blocking time, since it does not block", async () => {
+    const device = new FakeDevice();
+    const groma = attach(asDevice(device));
+
+    groma.beginRenderFrame();
+    await device.createRenderPipelineAsync({} as GPURenderPipelineDescriptor);
+    groma.beginRenderFrame();
+
+    expect(
+      groma.snapshot().frame?.pipelineCreationBlockingDurationSumInMs,
+    ).toBe(0);
+  });
+});
+
+describe("submissions", () => {
+  it("counts queue submissions per frame", () => {
+    const device = new FakeDevice();
+    const groma = attach(asDevice(device));
+
+    groma.beginRenderFrame();
+    device.queue.submit([]);
+    device.queue.submit([]);
+    groma.beginRenderFrame();
+
+    expect(groma.snapshot().frame?.gpuSubmissionCount).toBe(2);
+  });
+});

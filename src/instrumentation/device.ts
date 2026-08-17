@@ -41,6 +41,32 @@ export const instrumentDevice = (
   registry.add(
     patchMethod(
       device,
+      "createRenderPipelineAsync",
+      (original) =>
+        function (this: GPUDevice, descriptor: GPURenderPipelineDescriptor) {
+          // counted when requested, not when resolved: this is the frame that asked for it.
+          // deliberately no blocking duration, the cost is off the calling thread
+          state.current.pipelineCreationCount++;
+          return original.call(this, descriptor);
+        },
+    ),
+  );
+
+  registry.add(
+    patchMethod(
+      device,
+      "createComputePipelineAsync",
+      (original) =>
+        function (this: GPUDevice, descriptor: GPUComputePipelineDescriptor) {
+          state.current.pipelineCreationCount++;
+          return original.call(this, descriptor);
+        },
+    ),
+  );
+
+  registry.add(
+    patchMethod(
+      device,
       "createCommandEncoder",
       (original) =>
         function (this: GPUDevice, descriptor?: GPUCommandEncoderDescriptor) {

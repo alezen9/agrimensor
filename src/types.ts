@@ -34,6 +34,7 @@ export type FrameMetrics = {
   readonly computeDispatchCount: number;
   readonly renderPassCount: number;
   readonly computePassCount: number;
+  readonly gpuSubmissionCount: number;
   readonly queueWriteSumInBytes: number;
   readonly commandCopySumInBytes: number;
   readonly pipelineCreationCount: number;

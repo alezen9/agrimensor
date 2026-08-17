@@ -2,8 +2,9 @@
 
 Headless WebGPU metrics with explicit measurement semantics.
 
-Status: early. The public surface is defined, the implementation is landing in phases. Metric
-names may change before `0.1.0`.
+Status: alpha. Resource accounting and per frame work counters are implemented and tested.
+**GPU timing is not implemented yet**, so groma currently answers "what did this frame ask
+for", not "why was it slow". Metric names may change before `0.1.0`.
 
 ## Why
 
@@ -65,7 +66,7 @@ happened, since the tick that opens a frame is what closes the previous one.
 Every metric can explain itself:
 
 ```ts
-groma.describe("gpu.submittedRenderPassDurationSumInMs");
+groma.describe("resources.liveTextureAllocationSumInBytes");
 ```
 
 ## Why the frame marker exists

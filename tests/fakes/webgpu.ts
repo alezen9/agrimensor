@@ -115,6 +115,12 @@ export class FakeDevice {
   createRenderBundleEncoder() {
     return new FakeRenderBundleEncoder();
   }
+  createRenderPipelineAsync(_descriptor: GPURenderPipelineDescriptor) {
+    return Promise.resolve({ kind: "render-pipeline" });
+  }
+  createComputePipelineAsync(_descriptor: GPUComputePipelineDescriptor) {
+    return Promise.resolve({ kind: "compute-pipeline" });
+  }
   createRenderPipeline() {
     if (this.pipelineCreationError) throw this.pipelineCreationError;
     return { kind: "render-pipeline" };
