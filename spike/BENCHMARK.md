@@ -49,6 +49,39 @@ The frame figure times 300 consecutive frames and divides, after 60 warmup frame
 sampling was tried first and produced exactly 0.1ms and 0.2ms, which are artefacts of the
 browser clamping `performance.now()` to 100µs, the same order as the quantity being measured.
 
+## Sustained behaviour
+
+Run with `npm run soak`. Also against the built artifact, on the same machine.
+
+**2000 frames, 3 passes each, yielding to rAF like a real loop:**
+
+|                                  |                     |
+| -------------------------------- | ------------------- |
+| Frames with a resolved gpu entry | 1994 of 2000, 99.7% |
+| Max `resultLagFrameCount`        | 4                   |
+| Max `uninstrumentedPassCount`    | 0                   |
+| Non-positive executions          | 0                   |
+| Mean execution, first quarter    | 0.0264 ms           |
+| Mean execution, last quarter     | 0.0257 ms           |
+| Comparability lost               | never               |
+
+The lag is bounded at 4, which is the region count, so regions recycle rather than accumulate.
+Execution does not drift between the first and last quarter, so nothing leaks over a long run.
+
+**200 frames of 80 passes, deliberately past the 64 slot per region budget:**
+
+`uninstrumentedPassCount` reported exactly 16, which is 80 minus 64. Exceeding the budget is
+reported rather than silently dropped, and the frames still resolved at 99%. This is the failure
+mode Three has at `WebGPUTimestampQueryPool.js:71`, where instrumentation quietly stops.
+
+**500 frames with no yield to the event loop at all:**
+
+No gpu entry on any frame, no error, comparability retained. `mapAsync` cannot resolve without
+the event loop, so all four regions stay pending and nothing can be instrumented. A render loop
+that never yields therefore gets no GPU timing. Real loops driven by `requestAnimationFrame`
+always yield, so this is a synthetic edge, but it is the mechanism behind a stalled
+`resultLagFrameCount`.
+
 ## What is not measured
 
 - Timestamp readback. `mapAsync` resolves off the measured path, so its callback cost is not in

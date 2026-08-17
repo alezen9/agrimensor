@@ -359,6 +359,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Zero is the healthy value. Any non-zero value means the gpu durations are partial, which is the only signal that they undercount.",
       "A rendering engine with its own timestamp profiling enabled will drive this above zero.",
       "A frame where every timestamp region was still reading back produces no gpu entry at all rather than a zero, so a rising gpu.resultLagFrameCount is the signal for that case.",
+      "Results arrive through mapAsync, which needs the event loop. A render loop that never yields, for example a tight loop with no requestAnimationFrame, produces no gpu figures at all.",
       SINGLE_FRAME_CAVEAT,
     ],
   },

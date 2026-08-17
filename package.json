@@ -39,7 +39,8 @@
     "format:check": "prettier --check .",
     "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build",
     "spike": "node spike/run.mjs index.html",
-    "bench": "npm run build && node spike/run.mjs bench.html"
+    "bench": "npm run build && node spike/run.mjs bench.html",
+    "soak": "npm run build && node spike/run.mjs soak.html"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
