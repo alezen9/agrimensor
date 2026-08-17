@@ -37,10 +37,12 @@
     "test:unit": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build",
+    "spike": "node spike/run.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.71",
+    "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "typescript": "~6.0.3",
     "vite": "^8.2.1",
