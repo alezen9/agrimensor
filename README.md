@@ -115,6 +115,18 @@ app on Apple Silicon it read 27ms while the GPU had actually spent 4ms, a factor
 sums exist for comparison with what engines report, and their `describe()` entries carry a
 `preferInstead` pointing at the figure that answers the question.
 
+Totals tell you how much; `largestResources()` tells you which allocation to go and look at:
+
+```ts
+agrimensor.largestResources(5);
+// [{ kind: "texture", label: "bloomTarget", allocationInBytes: 33554432,
+//    format: "rgba16float", width: 2048, height: 2048 }, ...]
+```
+
+It is deliberately not part of `snapshot()`, which stays cheap enough to call every frame.
+Labels come from whatever the application set, and are empty when it set none, which is why the
+format and dimensions are included: a texture is recognisable by its shape alone.
+
 Every metric can explain itself:
 
 ```ts

@@ -1,5 +1,36 @@
 import { patchMethod } from "./patch";
-import type { ResourceMetrics } from "./types";
+import { calculateTextureAllocationBytes } from "./textureBytes";
+import type { ResourceEntry, ResourceMetrics } from "./types";
+
+const DEFAULT_LARGEST_COUNT = 10;
+
+type TrackedResource = ResourceEntry;
+
+const describeTexture = (
+  descriptor: GPUTextureDescriptor,
+  allocationInBytes: number,
+): TrackedResource => {
+  const size = descriptor.size;
+  const extent =
+    Symbol.iterator in size
+      ? (() => {
+          const [width = 1, height = 1, depthOrArrayLayers = 1] = [...size];
+          return { width, height, depthOrArrayLayers };
+        })()
+      : {
+          width: size.width,
+          height: size.height ?? 1,
+          depthOrArrayLayers: size.depthOrArrayLayers ?? 1,
+        };
+
+  return {
+    kind: "texture",
+    label: descriptor.label ?? "",
+    allocationInBytes,
+    format: descriptor.format,
+    ...extent,
+  };
+};
 
 /**
  * Live totals for resources created through the attached device.
@@ -15,19 +46,47 @@ export class ResourceRegistry {
   private bufferBytes = 0;
   private textureBytes = 0;
   private peakBytes = 0;
+  // holds descriptor facts and never the GPU object, so it cannot keep a resource
+  // alive. Entries are dropped on destroy rather than accumulating.
+  private readonly tracked = new Set<TrackedResource>();
 
-  trackBuffer(buffer: GPUBuffer, allocationInBytes: number) {
+  trackBuffer(buffer: GPUBuffer, descriptor: GPUBufferDescriptor) {
+    const allocationInBytes = descriptor.size;
     this.bufferCount++;
     this.bufferBytes += allocationInBytes;
     this.recordPeak();
-    this.observeDestroy(buffer, "buffer", allocationInBytes);
+
+    const entry: TrackedResource = {
+      kind: "buffer",
+      label: descriptor.label ?? "",
+      allocationInBytes,
+    };
+    this.tracked.add(entry);
+    this.observeDestroy(buffer, "buffer", allocationInBytes, entry);
   }
 
-  trackTexture(texture: GPUTexture, allocationInBytes: number) {
+  trackTexture(texture: GPUTexture, descriptor: GPUTextureDescriptor) {
+    const allocationInBytes = calculateTextureAllocationBytes(descriptor);
     this.textureCount++;
     this.textureBytes += allocationInBytes;
     this.recordPeak();
-    this.observeDestroy(texture, "texture", allocationInBytes);
+
+    const entry = describeTexture(descriptor, allocationInBytes);
+    this.tracked.add(entry);
+    this.observeDestroy(texture, "texture", allocationInBytes, entry);
+  }
+
+  largestResources(count = DEFAULT_LARGEST_COUNT): readonly ResourceEntry[] {
+    // membership is the single source of truth: an entry is dropped on destroy, so
+    // the set never holds anything that is not live and cannot grow under churn
+    const live = [...this.tracked];
+    live.sort((a, b) => b.allocationInBytes - a.allocationInBytes);
+    return live.slice(0, Math.max(0, count));
+  }
+
+  /** Internal, for tests that need to prove the set does not grow under churn. */
+  get trackedCount() {
+    return this.tracked.size;
   }
 
   toMetrics(): ResourceMetrics {
@@ -48,6 +107,7 @@ export class ResourceRegistry {
     resource: GPUBuffer | GPUTexture,
     kind: "buffer" | "texture",
     allocationInBytes: number,
+    entry: TrackedResource,
   ) {
     const registry = this;
     const release = { isDone: false };
@@ -60,11 +120,16 @@ export class ResourceRegistry {
           // destroy() is idempotent in WebGPU, so only the first call may decrement
           if (!release.isDone) {
             release.isDone = true;
+            registry.forget(entry);
             registry.release(kind, allocationInBytes);
           }
           return original.call(this);
         },
     );
+  }
+
+  private forget(entry: TrackedResource) {
+    this.tracked.delete(entry);
   }
 
   private release(kind: "buffer" | "texture", allocationInBytes: number) {

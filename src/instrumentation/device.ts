@@ -2,7 +2,6 @@ import { patchMethod, type RestoreRegistry } from "../patch";
 import type { AgrimensorState } from "../state";
 import { instrumentCommandEncoder } from "./commandEncoder";
 import { instrumentRenderBundleEncoder } from "./passes";
-import { calculateTextureAllocationBytes } from "../textureBytes";
 
 export const instrumentDevice = (
   device: GPUDevice,
@@ -16,7 +15,7 @@ export const instrumentDevice = (
       (original) =>
         function (this: GPUDevice, descriptor: GPUBufferDescriptor) {
           const buffer = original.call(this, descriptor);
-          state.resources.trackBuffer(buffer, descriptor.size);
+          state.resources.trackBuffer(buffer, descriptor);
           return buffer;
         },
     ),
@@ -29,10 +28,7 @@ export const instrumentDevice = (
       (original) =>
         function (this: GPUDevice, descriptor: GPUTextureDescriptor) {
           const texture = original.call(this, descriptor);
-          state.resources.trackTexture(
-            texture,
-            calculateTextureAllocationBytes(descriptor),
-          );
+          state.resources.trackTexture(texture, descriptor);
           return texture;
         },
     ),

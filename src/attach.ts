@@ -73,6 +73,11 @@ class AgrimensorInstance implements Agrimensor {
     return { resources };
   }
 
+  largestResources(count?: number) {
+    this.assertUsable();
+    return this.state.resources.largestResources(count);
+  }
+
   describe(metric: MetricPath): MetricDefinition {
     const definition = METRIC_DEFINITIONS[metric];
     if (!definition) throw new Error(`agrimensor: unknown metric "${metric}"`);

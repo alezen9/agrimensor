@@ -77,6 +77,18 @@ export type Snapshot = {
   readonly gpu?: GpuMetrics;
 };
 
+export type ResourceEntry = {
+  readonly kind: "buffer" | "texture";
+  /** The label the application gave the resource, empty when it set none. */
+  readonly label: string;
+  readonly allocationInBytes: number;
+  /** Texture only, and the reason a shape is recognisable without a label. */
+  readonly format?: GPUTextureFormat;
+  readonly width?: number;
+  readonly height?: number;
+  readonly depthOrArrayLayers?: number;
+};
+
 export type Capabilities = {
   readonly resourceTracking: boolean;
   readonly frameScope: boolean;
@@ -97,6 +109,16 @@ export type Agrimensor = {
   readonly capabilities: Capabilities;
   beginRenderFrame(): void;
   snapshot(): Snapshot;
+  /**
+   * The largest live resources by allocated bytes, biggest first. Deliberately not
+   * part of snapshot(), which stays cheap enough to call every frame: this allocates
+   * proportionally to the count requested and is meant for occasional inspection.
+   *
+   * Answers which allocation to go and look at, rather than only how many bytes exist
+   * in total. It is not a resource explorer: there is no enumeration of everything, no
+   * contents, and no lifetime history.
+   */
+  largestResources(count?: number): readonly ResourceEntry[];
   describe(metric: MetricPath): MetricDefinition;
   destroy(): void;
 };
