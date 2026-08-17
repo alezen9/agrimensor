@@ -30,10 +30,11 @@ several of them exist because a number looked plausible and was not.
 ## Install
 
 ```
-npm i agrimensor@alpha
+npm i agrimensor
 ```
 
-Releases before `0.1.0` publish under the `alpha` tag.
+Every release before `0.1.0` is an alpha and `latest` follows the newest one, so a plain install
+gives you a prerelease until then.
 
 ## Use
 

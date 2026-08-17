@@ -67,17 +67,42 @@ jobs:
           PKG=$(node -p "require('./package.json').version")
           test "$TAG" = "$PKG" || (echo "Tag $GITHUB_REF_NAME does not match package.json $PKG" && exit 1)
 
+      # npm never advances latest for a prerelease. That is right once a stable release
+      # exists and wrong before one does: it left `npm i agrimensor` resolving to
+      # alpha.0 while alpha.7 was current. So a prerelease takes latest only while no
+      # stable version holds it, and the rule turns itself off the moment one does.
+      # It has to be decided here rather than fixed afterwards with `npm dist-tag add`,
+      # because OIDC trusted publishing authenticates npm publish and nothing else.
       - name: Resolve dist-tag
         id: disttag
         run: |
-          PKG=$(node -p "require('./package.json').version")
-          if [[ "$PKG" == *-* ]]; then
-            # 0.1.0-alpha.0 publishes under "alpha", never under latest
-            TAG=$(node -p "require('./package.json').version.split('-')[1].split('.')[0]")
-          else
-            TAG=latest
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          if [[ "$PKG_VERSION" != *-* ]]; then
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          IDENTIFIER=${PKG_VERSION#*-}
+          IDENTIFIER=${IDENTIFIER%%.*}
+
+          # an unreadable registry falls through to the identifier, so a transient
+          # failure can never hand latest to a prerelease
+          if ! CURRENT=$(npm view "$PKG_NAME" dist-tags.latest 2>/dev/null); then
+            echo "could not read the current latest, publishing under $IDENTIFIER"
+            echo "tag=$IDENTIFIER" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -n "$CURRENT" && "$CURRENT" != *-* ]]; then
+            echo "latest is $CURRENT, a stable release, publishing under $IDENTIFIER"
+            echo "tag=$IDENTIFIER" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "no stable release holds latest, so $PKG_VERSION takes it"
+          echo "tag=latest" >> "$GITHUB_OUTPUT"
 
       - name: Skip if this version is already on npm
         id: exists
