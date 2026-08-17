@@ -16,7 +16,6 @@ import type {
 const attachedDevices = new WeakSet<GPUDevice>();
 
 class AgrimensorInstance implements Agrimensor {
-  // returned live so a consumer holding it sees frameScope flip on the first marked frame
   private readonly detectedCapabilities = {
     resourceTracking: true,
     frameScope: false,
@@ -41,8 +40,13 @@ class AgrimensorInstance implements Agrimensor {
     instrumentQueue(device.queue, this.state, this.registry);
   }
 
+  /**
+   * A fresh frozen object per read, matching snapshot(). Returning the live one
+   * would hand back a stable identity that mutates underneath, so a consumer holding
+   * it in reactive state would never see a capability change.
+   */
   get capabilities(): Capabilities {
-    return this.detectedCapabilities;
+    return Object.freeze({ ...this.detectedCapabilities });
   }
 
   beginRenderFrame() {

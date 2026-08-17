@@ -299,3 +299,26 @@ describe("metric guidance", () => {
     }
   });
 });
+
+describe("capabilities", () => {
+  it("returns a fresh object per read, so reactive state sees changes", () => {
+    const agrimensor = attach(asDevice(new FakeDevice()));
+
+    const before = agrimensor.capabilities;
+    agrimensor.beginRenderFrame();
+    const after = agrimensor.capabilities;
+
+    expect(before).not.toBe(after);
+    expect(before.frameScope).toBe(false);
+    expect(after.frameScope).toBe(true);
+  });
+
+  it("cannot be mutated by a consumer", () => {
+    const agrimensor = attach(asDevice(new FakeDevice()));
+    const capabilities = agrimensor.capabilities;
+
+    expect(() => {
+      (capabilities as { frameScope: boolean }).frameScope = true;
+    }).toThrow();
+  });
+});

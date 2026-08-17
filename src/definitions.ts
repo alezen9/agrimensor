@@ -7,10 +7,13 @@ const QUANTUM_CAVEAT =
   "Chrome reports timestamps in multiples of 65.536 microseconds unless the WebGPU developer features flag is enabled, so durations are quantised to that granularity and gaps shorter than it are invisible.";
 
 const CLOCK_DRIFT_CAVEAT =
-  "GPU frequency scaling changes these durations. Measured in a real app, halving the frame rate cap raised pass durations by roughly 40 percent for identical work, because a less loaded GPU clocks down. Durations are therefore not comparable across frame rate caps, resolutions, or any change that alters GPU load, and cannot be benchmarked at one setting and carried to another.";
+  "Pass durations shift when GPU load changes. Observed in a real app: halving the frame rate cap raised durations by roughly 40 percent for identical per-frame work. The likely cause is frequency scaling on a less loaded GPU, inferred from duty cycle arithmetic rather than confirmed against a frequency reading. Whatever the cause, the observation stands: durations are not comparable across frame rate caps, resolutions, or any change that alters GPU load, and cannot be benchmarked at one setting and carried to another.";
 
 const OVERLAP_CAVEAT =
-  "Passes execute concurrently on the GPU, so overlapping time is counted once per pass and this sum can far exceed the real elapsed GPU time. Measured at over twice the actual span in a synthetic test, and 6.75 times in a real Three.js app on Apple Silicon, where one pass's vertex phase overlaps another's fragment phase. Read gpu.submittedRenderAndComputePassExecutionInMs for time actually spent.";
+  "Passes execute concurrently, so each one can occupy most of the frame's whole pass window at the same time as the others. Observed in a real Three.js app on Apple Silicon: 8 render passes each averaging about two thirds of a 5.2ms window, because one pass's vertex phase overlaps another's fragment phase. Summing them therefore counts overlapping time once per pass and produced 27ms, 6.75 times the real elapsed GPU time. Read gpu.submittedRenderAndComputePassExecutionInMs for time actually spent.";
+
+const SINGLE_FRAME_CAVEAT =
+  "Describes one single frame, the most recently completed one, and is never an average. Reading this on a timer samples an arbitrary frame rather than a representative one. To characterise behaviour over time, read it every frame and aggregate yourself.";
 
 const SUBMITTED_CAVEAT =
   "Covers passes submitted during that frame. GPU and CPU clocks cannot be aligned, so this is not the frame the work executed in.";
@@ -120,6 +123,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Not a requestAnimationFrame count.",
       "Not a rendering engine frame count.",
       "Not a browser compositor or presented frame count.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.drawCallCount": {
@@ -135,6 +139,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Counts recorded commands, not primitives or instances rendered.",
       "Indirect draws are one command each regardless of what the GPU-side buffer specifies.",
       "Draws recorded before attach, or through a device Agrimensor is not attached to, are not counted.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.computeDispatchCount": {
@@ -149,6 +154,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Counts dispatch commands, not workgroups or invocations.",
       "Indirect dispatches are one command each regardless of the GPU-side workgroup count.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.renderPassCount": {
@@ -159,7 +165,10 @@ export const METRIC_DEFINITIONS: Readonly<
     description: "Render passes begun during this frame.",
     methodology:
       "Counted on every beginRenderPass() call on command encoders created through the attached device.",
-    caveats: ["Counts passes begun, not passes that completed successfully."],
+    caveats: [
+      "Counts passes begun, not passes that completed successfully.",
+      SINGLE_FRAME_CAVEAT,
+    ],
   },
   "frame.computePassCount": {
     name: "frame.computePassCount",
@@ -169,7 +178,10 @@ export const METRIC_DEFINITIONS: Readonly<
     description: "Compute passes begun during this frame.",
     methodology:
       "Counted on every beginComputePass() call on command encoders created through the attached device.",
-    caveats: ["Counts passes begun, not passes that completed successfully."],
+    caveats: [
+      "Counts passes begun, not passes that completed successfully.",
+      SINGLE_FRAME_CAVEAT,
+    ],
   },
   "frame.gpuSubmissionCount": {
     name: "frame.gpuSubmissionCount",
@@ -183,6 +195,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Counts submit() calls, not command buffers. One submission can carry several.",
       "A rendering engine may split one rendered frame across several submissions.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.queueWriteSumInBytes": {
@@ -197,6 +210,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "This is data handed to the API, not bus traffic. Implementations batch, stage and schedule the real transfer.",
       "Excludes data reaching the GPU through mappedAtCreation buffers or mapAsync writes, which are not observable as a queue call.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.commandCopySumInBytes": {
@@ -211,6 +225,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Counts bytes described by recorded commands, not bytes actually moved. A command buffer that is never submitted is still counted.",
       "This is GPU-side movement. It is not a CPU upload and not a readback: copyTextureToBuffer only reaches a GPU buffer, and the transfer to CPU memory happens later at mapAsync, which this does not measure.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.pipelineCreationCount": {
@@ -225,6 +240,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Steady state should be zero. A non-zero value mid-run means pipelines are being built during rendering.",
       "Only the synchronous variants contribute to frame.pipelineCreationBlockingDurationSumInMs, so a frame can show creations with no blocking time.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "frame.pipelineCreationBlockingDurationSumInMs": {
@@ -241,6 +257,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Excludes createRenderPipelineAsync and createComputePipelineAsync, which do not block. Those still appear in frame.pipelineCreationCount.",
       "Implementations may defer real compilation, so a small value here does not prove compilation was cheap.",
       QUANTIZATION_CAVEAT,
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.resultLagFrameCount": {
@@ -255,6 +272,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Timestamp results are read back asynchronously, so gpu figures always describe an earlier frame than the frame group does.",
       "The value grows if readback is slow, and no figure is ever relabelled to the current frame.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.submittedRenderPassDurationSumInMs": {
@@ -272,6 +290,7 @@ export const METRIC_DEFINITIONS: Readonly<
       SUBMITTED_CAVEAT,
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.submittedComputePassDurationSumInMs": {
@@ -289,6 +308,7 @@ export const METRIC_DEFINITIONS: Readonly<
       SUBMITTED_CAVEAT,
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.submittedRenderAndComputePassExecutionInMs": {
@@ -306,6 +326,7 @@ export const METRIC_DEFINITIONS: Readonly<
       SUBMITTED_CAVEAT,
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.submittedRenderAndComputePassGapSumInMs": {
@@ -322,6 +343,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Measured between the first and last pass of the frame only, so it says nothing about time before or after that window.",
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
+      SINGLE_FRAME_CAVEAT,
     ],
   },
   "gpu.uninstrumentedPassCount": {
@@ -337,6 +359,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Zero is the healthy value. Any non-zero value means the gpu durations are partial, which is the only signal that they undercount.",
       "A rendering engine with its own timestamp profiling enabled will drive this above zero.",
       "A frame where every timestamp region was still reading back produces no gpu entry at all rather than a zero, so a rising gpu.resultLagFrameCount is the signal for that case.",
+      SINGLE_FRAME_CAVEAT,
     ],
   },
 };

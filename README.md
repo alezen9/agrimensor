@@ -66,6 +66,34 @@ const { resources, frame } = agrimensor.snapshot();
 happened, since the tick that opens a frame is what closes the previous one. `gpu` is present
 when the device has `timestamp-query` and a batch of timestamps has finished reading back.
 
+### Levels and flows read differently
+
+`resources` are **levels**. They describe the state right now, so reading them on a timer is
+correct and gives you the answer you expect.
+
+`frame` and `gpu` are **flows**. Each describes exactly one frame, the most recently completed
+one, and is never an average. Reading them on a timer samples an arbitrary frame, which will
+look unstable and will misreport anything that varies between frames. Read them every frame
+and aggregate yourself:
+
+```ts
+const samples: number[] = [];
+
+const onRenderFrame = () => {
+  agrimensor.beginRenderFrame();
+  renderer.render(scene, camera);
+
+  const { frame } = agrimensor.snapshot();
+  if (frame) samples.push(frame.drawCallCount);
+};
+
+// then report min, max or a mean over samples, and clear it
+```
+
+This is the single easiest way to misread the library. Sampling once a second produced a draw
+count that looked wrong and a gap that looked unstable, and both were artefacts of sampling one
+frame out of a hundred and twenty.
+
 GPU time for a frame, against a 120fps budget of 8.33ms:
 
 ```ts
