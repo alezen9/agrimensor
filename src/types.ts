@@ -66,7 +66,7 @@ type LeafPaths<T, Prefix extends string> = {
 export type MetricPath =
   LeafPaths<ResourceMetrics, "resources"> | LeafPaths<FrameMetrics, "frame">;
 
-export type Groma = {
+export type Agrimensor = {
   readonly capabilities: Capabilities;
   beginRenderFrame(): void;
   snapshot(): Snapshot;

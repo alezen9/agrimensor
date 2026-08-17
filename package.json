@@ -1,10 +1,10 @@
 {
-  "name": "groma",
+  "name": "agrimensor",
   "version": "0.1.0-alpha.0",
   "description": "Headless WebGPU metrics with explicit measurement semantics.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alezen9/groma.git"
+    "url": "git+https://github.com/alezen9/agrimensor.git"
   },
   "type": "module",
   "main": "dist/index.js",

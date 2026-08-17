@@ -49,114 +49,114 @@ describe("calculateWrittenBufferBytes", () => {
 describe("queue writes", () => {
   it("sums writeBuffer and writeTexture into the frame", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const buffer = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device.queue.writeBuffer(buffer, 0, new Float32Array(16));
     device.queue.writeTexture(rgbaTexture(), new ArrayBuffer(64), {}, [4, 4]);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
     // 16 floats is 64 bytes, plus a 4x4 rgba8 region is another 64
-    expect(groma.snapshot().frame?.queueWriteSumInBytes).toBe(128);
+    expect(agrimensor.snapshot().frame?.queueWriteSumInBytes).toBe(128);
   });
 
   it("keeps queue writes out of the copy total", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const buffer = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device.queue.writeBuffer(buffer, 0, new Uint8Array(32));
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(0);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(0);
   });
 });
 
 describe("command copies", () => {
   it("uses the declared size in the long form", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const source = device.createBuffer({ size: 1024, usage: 0 });
     const destination = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device
       .createCommandEncoder()
       .copyBufferToBuffer(source, 0, destination, 0, 512);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(512);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(512);
   });
 
   it("falls back to the source size minus its offset when size is omitted", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const source = device.createBuffer({ size: 1024, usage: 0 });
     const destination = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device
       .createCommandEncoder()
       .copyBufferToBuffer(source, 256, destination, 0);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(768);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(768);
   });
 
   it("handles the shorthand overload with an explicit size", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const source = device.createBuffer({ size: 1024, usage: 0 });
     const destination = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device.createCommandEncoder().copyBufferToBuffer(source, destination, 128);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(128);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(128);
   });
 
   it("handles the shorthand overload with no size, using the whole source", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const source = device.createBuffer({ size: 700, usage: 0 });
     const destination = device.createBuffer({ size: 1024, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device.createCommandEncoder().copyBufferToBuffer(source, destination);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(700);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(700);
   });
 
   it("computes texture copy regions from the format", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     const encoder = device.createCommandEncoder();
     encoder.copyTextureToTexture(rgbaTexture(), rgbaTexture(), [8, 8]);
     encoder.copyTextureToBuffer(rgbaTexture(), {}, [4, 4]);
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(
       8 * 8 * 4 + 4 * 4 * 4,
     );
   });
 
   it("resets copy totals between frames", () => {
     const device = new FakeDevice();
-    const groma = attach(asDevice(device));
+    const agrimensor = attach(asDevice(device));
     const source = device.createBuffer({ size: 512, usage: 0 });
     const destination = device.createBuffer({ size: 512, usage: 0 });
 
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
     device.createCommandEncoder().copyBufferToBuffer(source, destination);
-    groma.beginRenderFrame();
-    groma.beginRenderFrame();
+    agrimensor.beginRenderFrame();
+    agrimensor.beginRenderFrame();
 
-    expect(groma.snapshot().frame?.commandCopySumInBytes).toBe(0);
+    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(0);
   });
 });

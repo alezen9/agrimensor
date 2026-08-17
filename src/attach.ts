@@ -2,10 +2,10 @@ import { METRIC_DEFINITIONS } from "./definitions";
 import { instrumentDevice } from "./instrumentation/device";
 import { instrumentQueue } from "./instrumentation/queue";
 import { RestoreRegistry } from "./patch";
-import { GromaState } from "./state";
+import { AgrimensorState } from "./state";
 import type {
   Capabilities,
-  Groma,
+  Agrimensor,
   MetricDefinition,
   MetricPath,
   Snapshot,
@@ -13,14 +13,14 @@ import type {
 
 const attachedDevices = new WeakSet<GPUDevice>();
 
-class GromaInstance implements Groma {
+class AgrimensorInstance implements Agrimensor {
   // returned live so a consumer holding it sees frameScope flip on the first marked frame
   private readonly detectedCapabilities = {
     resourceTracking: true,
     frameScope: false,
   };
 
-  private readonly state = new GromaState();
+  private readonly state = new AgrimensorState();
   private readonly registry = new RestoreRegistry();
   private readonly device: GPUDevice;
   private isDestroyed = false;
@@ -50,7 +50,7 @@ class GromaInstance implements Groma {
 
   describe(metric: MetricPath): MetricDefinition {
     const definition = METRIC_DEFINITIONS[metric];
-    if (!definition) throw new Error(`groma: unknown metric "${metric}"`);
+    if (!definition) throw new Error(`agrimensor: unknown metric "${metric}"`);
     return definition;
   }
 
@@ -63,15 +63,15 @@ class GromaInstance implements Groma {
 
   private assertUsable() {
     if (this.isDestroyed) {
-      throw new Error("groma: this instance has been destroyed");
+      throw new Error("agrimensor: this instance has been destroyed");
     }
   }
 }
 
-export const attach = (device: GPUDevice): Groma => {
+export const attach = (device: GPUDevice): Agrimensor => {
   if (attachedDevices.has(device)) {
-    throw new Error("groma: this device already has an instance attached");
+    throw new Error("agrimensor: this device already has an instance attached");
   }
   attachedDevices.add(device);
-  return new GromaInstance(device);
+  return new AgrimensorInstance(device);
 };

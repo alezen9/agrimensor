@@ -1,11 +1,11 @@
 import { calculateWrittenBufferBytes } from "../bufferBytes";
 import { patchMethod, type RestoreRegistry } from "../patch";
-import type { GromaState } from "../state";
+import type { AgrimensorState } from "../state";
 import { calculateCopyRegionBytes } from "../textureBytes";
 
 export const instrumentQueue = (
   queue: GPUQueue,
-  state: GromaState,
+  state: AgrimensorState,
   registry: RestoreRegistry,
 ) => {
   registry.add(

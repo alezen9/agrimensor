@@ -1,5 +1,5 @@
 /**
- * A deliberately small stand-in for the parts of WebGPU that Groma patches. It is not a
+ * A deliberately small stand-in for the parts of WebGPU that Agrimensor patches. It is not a
  * WebGPU implementation and should never grow into one.
  *
  * Methods live on the prototypes on purpose: that is where WebIDL puts them, and it is

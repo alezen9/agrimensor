@@ -5,7 +5,7 @@ import type { ResourceMetrics } from "./types";
  * Live totals for resources created through the attached device.
  *
  * Destruction is observed by shadowing destroy() on each resource. Those shadows are
- * deliberately not registered for restore on Groma.destroy(): holding a restore per
+ * deliberately not registered for restore on Agrimensor.destroy(): holding a restore per
  * resource would keep every buffer and texture reachable and defeat garbage collection.
  * A shadow dies with the object it sits on.
  */

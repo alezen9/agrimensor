@@ -12,7 +12,7 @@ export const METRIC_DEFINITIONS: Readonly<
     source: "webgpu-api-observation",
     confidence: "measured",
     description:
-      "Buffers created through the attached device that Groma has not observed being destroyed.",
+      "Buffers created through the attached device that Agrimensor has not observed being destroyed.",
     methodology:
       "Incremented on createBuffer(), decremented the first time destroy() is called on that buffer.",
     caveats: [
@@ -26,7 +26,7 @@ export const METRIC_DEFINITIONS: Readonly<
     source: "webgpu-api-observation",
     confidence: "measured",
     description:
-      "Textures created through the attached device that Groma has not observed being destroyed.",
+      "Textures created through the attached device that Agrimensor has not observed being destroyed.",
     methodology:
       "Incremented on createTexture(), decremented the first time destroy() is called on that texture.",
     caveats: [
@@ -61,7 +61,7 @@ export const METRIC_DEFINITIONS: Readonly<
       "Per texture, block dimensions and bytes per block for its format are taken from a WebGPU format table, applied across its full declared mip chain, then multiplied by array layers and sample count.",
     caveats: [
       "This is a calculation from the descriptor, not a reading from the driver.",
-      "depth24plus, depth24plus-stencil8 and depth32float-stencil8 have implementation-defined storage. Groma models them as 4, 4 and 8 bytes per texel respectively, which matches common Dawn backends but is not reported by the API.",
+      "depth24plus, depth24plus-stencil8 and depth32float-stencil8 have implementation-defined storage. Agrimensor models them as 4, 4 and 8 bytes per texel respectively, which matches common Dawn backends but is not reported by the API.",
       "Multisampled textures are multiplied by sampleCount. Some GPUs compress multisampled surfaces, so real footprint can be lower.",
       "Assumes the full declared mip chain is allocated.",
       "This is not physical GPU memory usage and must not be read as VRAM.",
@@ -122,7 +122,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Counts recorded commands, not primitives or instances rendered.",
       "Indirect draws are one command each regardless of what the GPU-side buffer specifies.",
-      "Draws recorded before attach, or through a device Groma is not attached to, are not counted.",
+      "Draws recorded before attach, or through a device Agrimensor is not attached to, are not counted.",
     ],
   },
   "frame.computeDispatchCount": {
@@ -167,7 +167,7 @@ export const METRIC_DEFINITIONS: Readonly<
     description:
       "Times work was handed to the GPU queue during this frame, via queue.submit().",
     methodology:
-      "Counted on every submit() call on the attached device's queue. Submissions Groma makes for its own bookkeeping are excluded.",
+      "Counted on every submit() call on the attached device's queue. Submissions Agrimensor makes for its own bookkeeping are excluded.",
     caveats: [
       "Counts submit() calls, not command buffers. One submission can carry several.",
       "A rendering engine may split one rendered frame across several submissions.",

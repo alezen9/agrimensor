@@ -1,10 +1,13 @@
 import { calculateBufferCopyBytes } from "../bufferBytes";
 import { patchMethod } from "../patch";
-import type { GromaState } from "../state";
+import type { AgrimensorState } from "../state";
 import { calculateCopyRegionBytes } from "../textureBytes";
 import { instrumentComputePass, instrumentRenderPass } from "./passes";
 
-const instrumentCopies = (encoder: GPUCommandEncoder, state: GromaState) => {
+const instrumentCopies = (
+  encoder: GPUCommandEncoder,
+  state: AgrimensorState,
+) => {
   patchMethod(
     encoder,
     "copyBufferToBuffer",
@@ -76,7 +79,7 @@ const instrumentCopies = (encoder: GPUCommandEncoder, state: GromaState) => {
 
 export const instrumentCommandEncoder = (
   encoder: GPUCommandEncoder,
-  state: GromaState,
+  state: AgrimensorState,
 ) => {
   instrumentCopies(encoder, state);
 

@@ -1,9 +1,12 @@
-# groma
+# agrimensor
 
 Headless WebGPU metrics with explicit measurement semantics.
 
+An agrimensor was a Roman land surveyor. The job was not to decide where boundaries should be,
+but to sight them accurately and record what was actually there.
+
 Status: alpha. Resource accounting and per frame work counters are implemented and tested.
-**GPU timing is not implemented yet**, so groma currently answers "what did this frame ask
+**GPU timing is not implemented yet**, so agrimensor currently answers "what did this frame ask
 for", not "why was it slow". Metric names may change before `0.1.0`.
 
 ## Why
@@ -14,7 +17,7 @@ out to be a sum of individual pass durations, which cannot answer whether the GP
 memory total counted compressed textures as one byte each and added shader source string
 length into the same figure.
 
-Groma exposes a small set of metrics and, for every one of them, states exactly what it
+Agrimensor exposes a small set of metrics and, for every one of them, states exactly what it
 measures, how, and what it does not represent. It attaches to a `GPUDevice` and depends on no
 rendering engine.
 
@@ -23,13 +26,13 @@ It prefers exposing no metric over exposing a convenient but misleading one.
 ## Install
 
 ```
-npm i groma
+npm i agrimensor
 ```
 
 ## Use
 
 ```ts
-import { attach } from "groma";
+import { attach } from "agrimensor";
 
 const adapter = await navigator.gpu.requestAdapter();
 if (!adapter) throw new Error("WebGPU is not available");
@@ -41,7 +44,7 @@ if (adapter.features.has("timestamp-query")) {
 
 const device = await adapter.requestDevice({ requiredFeatures });
 
-const groma = attach(device);
+const agrimensor = attach(device);
 
 // then hand the same device to a renderer, or use it directly
 ```
@@ -49,7 +52,7 @@ const groma = attach(device);
 Call `beginRenderFrame()` once per rendered frame, immediately before the frame's GPU work:
 
 ```ts
-groma.beginRenderFrame();
+agrimensor.beginRenderFrame();
 renderer.render(scene, camera);
 ```
 
@@ -57,7 +60,7 @@ Read whenever you want. `snapshot()` is synchronous, never blocks, and never for
 readback:
 
 ```ts
-const { resources, frame } = groma.snapshot();
+const { resources, frame } = agrimensor.snapshot();
 ```
 
 `resources` is always present. `frame` is present once two `beginRenderFrame()` calls have
@@ -66,12 +69,12 @@ happened, since the tick that opens a frame is what closes the previous one.
 Every metric can explain itself:
 
 ```ts
-groma.describe("resources.liveTextureAllocationSumInBytes");
+agrimensor.describe("resources.liveTextureAllocationSumInBytes");
 ```
 
 ## Why the frame marker exists
 
-Groma cannot infer where your frame begins. `requestAnimationFrame` is not a reliable proxy:
+Agrimensor cannot infer where your frame begins. `requestAnimationFrame` is not a reliable proxy:
 an app that renders every other rAF tick, or renders off the main loop entirely, would be
 measured wrong. You know where your frame is, so you declare it. Without
 `beginRenderFrame()`, per frame metrics are `undefined` and `capabilities.frameScope` is
@@ -89,11 +92,11 @@ These are properties of WebGPU, not omissions.
   unknown offset and no API bridges them. Work is attributed to the frame it was _submitted_
   in, never the frame it executed in.
 - **Cross submission timing, guaranteed.** The spec does not promise timestamps are comparable
-  across submits ([gpuweb#4361](https://github.com/gpuweb/gpuweb/issues/4361)). Groma checks
+  across submits ([gpuweb#4361](https://github.com/gpuweb/gpuweb/issues/4361)). Agrimensor checks
   at runtime instead of assuming, and withholds the affected metric if the check fails.
 - **Sub-millisecond precision.** Chrome quantizes timestamps to 100 microseconds. A multi
   millisecond span is meaningful, a 0.2ms pass is not.
-- **Physical GPU memory.** Groma reports logical allocation requested through WebGPU. It does
+- **Physical GPU memory.** Agrimensor reports logical allocation requested through WebGPU. It does
   not know driver residency, alignment padding, or implementation internal allocations, and
   will not call any of its numbers VRAM.
 - **Resources it never saw.** Anything created before `attach()`, canvas textures from

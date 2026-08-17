@@ -1,12 +1,12 @@
 import { patchMethod, type RestoreRegistry } from "../patch";
-import type { GromaState } from "../state";
+import type { AgrimensorState } from "../state";
 import { instrumentCommandEncoder } from "./commandEncoder";
 import { instrumentRenderBundleEncoder } from "./passes";
 import { calculateTextureAllocationBytes } from "../textureBytes";
 
 export const instrumentDevice = (
   device: GPUDevice,
-  state: GromaState,
+  state: AgrimensorState,
   registry: RestoreRegistry,
 ) => {
   registry.add(

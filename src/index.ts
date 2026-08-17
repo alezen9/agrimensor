@@ -1,7 +1,7 @@
 export { attach } from "./attach";
 
 export type {
-  Groma,
+  Agrimensor,
   Capabilities,
   Snapshot,
   FrameMetrics,

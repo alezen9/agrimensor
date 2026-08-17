@@ -1,5 +1,5 @@
 import { patchMethod } from "../patch";
-import type { GromaState } from "../state";
+import type { AgrimensorState } from "../state";
 
 // these are unrolled rather than looped over a list of method names: the four draw
 // signatures differ, so a loop would collapse them into a union that only typechecks
@@ -7,7 +7,7 @@ import type { GromaState } from "../state";
 
 export const instrumentRenderPass = (
   pass: GPURenderPassEncoder,
-  state: GromaState,
+  state: AgrimensorState,
 ) => {
   patchMethod(
     pass,
@@ -82,7 +82,7 @@ export const instrumentRenderPass = (
 
 export const instrumentComputePass = (
   pass: GPUComputePassEncoder,
-  state: GromaState,
+  state: AgrimensorState,
 ) => {
   patchMethod(
     pass,
@@ -113,7 +113,7 @@ export const instrumentComputePass = (
 
 export const instrumentRenderBundleEncoder = (
   encoder: GPURenderBundleEncoder,
-  state: GromaState,
+  state: AgrimensorState,
 ) => {
   const counter = { drawCount: 0 };
 

@@ -25,7 +25,7 @@ export class FrameCounters {
   }
 }
 
-export class GromaState {
+export class AgrimensorState {
   readonly current = new FrameCounters();
   readonly resources = new ResourceRegistry();
   readonly bundleDrawCounts = new WeakMap<GPURenderBundle, number>();
