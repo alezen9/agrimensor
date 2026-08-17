@@ -59,10 +59,7 @@ if (!result.ok) {
   process.exit(1);
 }
 
-const { adapter, summary, runs } = result.report;
+const { adapter, summary, followUps } = result.report;
 console.log("\nadapter:", JSON.stringify(adapter));
 console.log("\nsummary:", JSON.stringify(summary, null, 2));
-console.log("\nfirst three rounds:");
-for (const round of runs.slice(0, 3)) {
-  console.log(JSON.stringify(round));
-}
+console.log("\nfollow-ups:", JSON.stringify(followUps, null, 2));

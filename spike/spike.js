@@ -1,3 +1,12 @@
+import {
+  probeAlreadyInstrumented,
+  probeInFlightReadbacks,
+  probeMixedPassTimeline,
+  probePassOverlap,
+  probeQuerySetCapacity,
+  probeSustainedRun,
+} from "./probes.js";
+
 // Phase 4 timestamp spike. Raw WebGPU, no dependency on the library.
 // Answers what the spec refuses to promise, on this machine's actual backend.
 // Not shipped: `files` in package.json is dist only.
@@ -224,6 +233,28 @@ export const run = async () => {
     ),
     quantum: detectQuantum([...singles, ...crosses]),
   };
+
+  const helpers = {
+    createQueryRing,
+    writesFor,
+    encodeComputePass,
+    readTimestamps,
+  };
+
+  report.followUps = {
+    mixedPassTimeline: await probeMixedPassTimeline(ctx, helpers),
+    passOverlap: await probePassOverlap(ctx, helpers),
+    querySetCapacity: await probeQuerySetCapacity(ctx.device),
+    inFlightReadbacks: [],
+    alreadyInstrumented: await probeAlreadyInstrumented(ctx, helpers),
+    sustainedRun: await probeSustainedRun(ctx, helpers, 2000),
+  };
+
+  for (const depth of [8, 16, 24, 32, 40, 64]) {
+    report.followUps.inFlightReadbacks.push(
+      await probeInFlightReadbacks(ctx, helpers, depth),
+    );
+  }
 
   ctx.device.destroy();
   return report;
