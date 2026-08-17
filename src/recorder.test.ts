@@ -148,3 +148,53 @@ describe("cross submission plausibility", () => {
     expect(agrimensor.snapshot().gpu).toBeUndefined();
   });
 });
+
+describe("ownership of its own resources", () => {
+  it("keeps its own buffers out of the consumer's resource totals", () => {
+    const device = withTimestampSupport(new FakeDevice());
+    const agrimensor = attach(asDevice(device));
+
+    // the recorder allocates a resolve buffer and one readback buffer per region
+    expect(device.buffers.length).toBeGreaterThan(0);
+    expect(agrimensor.snapshot().resources.liveBufferCount).toBe(0);
+    expect(agrimensor.snapshot().resources.liveBufferAllocationSumInBytes).toBe(
+      0,
+    );
+  });
+
+  it("releases every buffer it allocated on destroy", () => {
+    const device = withTimestampSupport(new FakeDevice());
+    const agrimensor = attach(asDevice(device));
+    const owned = [...device.buffers];
+
+    expect(owned.every((buffer) => buffer.destroyCount === 0)).toBe(true);
+
+    agrimensor.destroy();
+
+    expect(owned.every((buffer) => buffer.destroyCount === 1)).toBe(true);
+  });
+
+  it("never reports its own buffers to a resource hook", () => {
+    const device = withTimestampSupport(new FakeDevice());
+    const created: unknown[] = [];
+
+    attach(asDevice(device), {
+      onResourceCreated: (resource) => created.push(resource),
+    });
+
+    // the recorder allocates before instrumentation is installed, which is what
+    // keeps its buffers out of both the totals and the hook
+    expect(device.buffers.length).toBeGreaterThan(0);
+    expect(created).toEqual([]);
+  });
+
+  it("does not touch the consumer's buffers on destroy", () => {
+    const device = withTimestampSupport(new FakeDevice());
+    const agrimensor = attach(asDevice(device));
+    const theirs = device.createBuffer({ size: 512, usage: 0 });
+
+    agrimensor.destroy();
+
+    expect(theirs.destroyCount).toBe(0);
+  });
+});

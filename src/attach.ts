@@ -5,6 +5,7 @@ import { RestoreRegistry } from "./patch";
 import { AgrimensorState } from "./state";
 import { TimestampRecorder } from "./timestamps";
 import type {
+  AttachOptions,
   Capabilities,
   Agrimensor,
   GpuMetrics,
@@ -23,13 +24,14 @@ class AgrimensorInstance implements Agrimensor {
     crossSubmissionTimestampsComparable: true,
   };
 
-  private readonly state = new AgrimensorState();
+  private readonly state: AgrimensorState;
   private readonly registry = new RestoreRegistry();
   private readonly device: GPUDevice;
   private isDestroyed = false;
 
-  constructor(device: GPUDevice) {
+  constructor(device: GPUDevice, options: AttachOptions) {
     this.device = device;
+    this.state = new AgrimensorState(options);
     // the recorder is created before instrumentation so its own query set and
     // buffers are not counted as consumer resources
     const recorder = new TimestampRecorder(device);
@@ -117,10 +119,13 @@ class AgrimensorInstance implements Agrimensor {
   }
 }
 
-export const attach = (device: GPUDevice): Agrimensor => {
+export const attach = (
+  device: GPUDevice,
+  options: AttachOptions = {},
+): Agrimensor => {
   if (attachedDevices.has(device)) {
     throw new Error("agrimensor: this device already has an instance attached");
   }
   attachedDevices.add(device);
-  return new AgrimensorInstance(device);
+  return new AgrimensorInstance(device, options);
 };

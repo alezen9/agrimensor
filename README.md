@@ -22,7 +22,7 @@ rendering engine.
 
 It prefers exposing no metric over exposing a convenient but misleading one.
 
-Metric names and semantics may still change before `1.0.0`. A metric whose meaning turns out to
+Metric names and semantics may still change before `0.1.0`. A metric whose meaning turns out to
 be wrong gets corrected or removed rather than preserved, because **a stable lie is worse than a
 breaking correction in a measurement library**. Corrections are listed in `CHANGELOG.md`, and
 several of them exist because a number looked plausible and was not.
@@ -30,8 +30,10 @@ several of them exist because a number looked plausible and was not.
 ## Install
 
 ```
-npm i agrimensor
+npm i agrimensor@alpha
 ```
+
+Releases before `0.1.0` publish under the `alpha` tag.
 
 ## Use
 
@@ -140,6 +142,58 @@ Every metric can explain itself:
 agrimensor.describe("resources.liveTextureAllocationSumInBytes");
 ```
 
+## Where a resource came from
+
+`largestResources()` tells you which allocation is big. On an engine you did not write, the next
+question is which line of code asked for it, and no total can answer that. The only moment the
+answer exists is the call itself, so agrimensor hands you that moment and keeps nothing:
+
+```ts
+const origins = new Map<number, string>();
+
+const agrimensor = attach(device, {
+  onResourceCreated: ({ id, allocationInBytes }) => {
+    if (allocationInBytes < 20e6) return;
+    origins.set(id, new Error().stack ?? "");
+  },
+  onResourceDestroyed: ({ id }) => origins.delete(id),
+});
+```
+
+Both hooks receive the same `ResourceEntry` shape `largestResources()` returns, and `id` is
+stable and never reused, so anything you key by it joins cleanly against a later reading.
+
+What agrimensor deliberately does not do is capture the stack itself. When to capture, how much
+to trim, how long to hold it and how much memory that is allowed to cost are policy, and a
+measurement library that decides policy stops being one.
+
+- The hooks fire **synchronously inside the allocating call**. Do no work there beyond recording,
+  and do not call back into the device from them. `new Error().stack` is expensive enough that
+  capturing it for every allocation during asset load is noticeable, which is why the size filter
+  above comes before the capture rather than after it.
+- A hook that throws is swallowed, so a bug in yours cannot reach the `createTexture()` that
+  fired it.
+- Neither hook fires for resources created before `attach()`, nor for agrimensor's own
+  timestamp buffers.
+- `onResourceDestroyed` fires only for an explicit `destroy()`. A resource dropped to garbage
+  collection never calls it, so a map keyed by id has to tolerate entries that outlive their
+  resource. This is the same limit the live totals have.
+- They say where a resource was created, not why it is still alive. This is not a leak detector.
+
+The top frames of a captured stack are agrimensor's own, and a minified production build gives
+you useless frames without sourcemaps. On V8, `Error.captureStackTrace(holder, fn)` trims the
+instrumentation off the top cleanly.
+
+## Detaching
+
+`destroy()` removes every patch from the device, releases agrimensor's own query set and
+buffers, and makes any later call on the instance throw rather than return a stale figure. Your
+own resources are untouched. After it, `attach()` can be called on that device again.
+
+```ts
+agrimensor.destroy();
+```
+
 ## Using it with three.js
 
 Attach **after** `renderer.init()`, to the device three created itself:
@@ -194,10 +248,11 @@ submit per frame to resolve timestamps.
 Measured on an Apple M2 Pro with `npm run bench`, against the built artifact. No zero-overhead
 claim is made. Method and caveats are in `spike/BENCHMARK.md`.
 
-Size: the published artifact is 47.8 kB raw and 11.8 kB gzipped, shipped unminified so your
-bundler can minify and so the source stays auditable. Minified it is 31.6 kB, or **9.1 kB
-gzipped**, which is what an application bundle actually carries. There is no build-time flag, so
-gating agrimensor behind a runtime flag keeps it in the bundle.
+Size: the published artifact is 48.7 kB raw and 12.1 kB gzipped, shipped unminified so your
+bundler can minify and so the source stays auditable. Minified it is 36.8 kB, or **9.7 kB
+gzipped**, which is what an application bundle actually carries. That last pair comes from this
+project's own minifier, so your bundler will land near it rather than exactly on it. There is no
+build-time flag, so gating agrimensor behind a runtime flag keeps it in the bundle.
 
 ## What it cannot measure
 

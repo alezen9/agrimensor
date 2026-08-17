@@ -120,6 +120,26 @@ export type MetricPath =
   | LeafPaths<FrameMetrics, "frame">
   | LeafPaths<GpuMetrics, "gpu">;
 
+/**
+ * Fired the moment a resource is created or destroyed, which is the only point at
+ * which the call stack still says where it came from. Agrimensor stores nothing of
+ * its own here: what to capture, how much of it to keep and when to discard it are
+ * decisions that belong to the consumer, not to a measurement library.
+ *
+ * A hook that throws is swallowed. It runs synchronously inside the call that
+ * allocated the resource, so it must not call back into the device and must not do
+ * expensive work: record and defer.
+ */
+export type AttachOptions = {
+  readonly onResourceCreated?: (resource: ResourceEntry) => void;
+  /**
+   * Only fires for an explicit destroy(). A resource dropped to garbage collection
+   * never calls it, so anything a consumer keys by id outlives such a resource and
+   * has to tolerate that, exactly as the live totals do.
+   */
+  readonly onResourceDestroyed?: (resource: ResourceEntry) => void;
+};
+
 export type Agrimensor = {
   readonly capabilities: Capabilities;
   beginRenderFrame(): void;

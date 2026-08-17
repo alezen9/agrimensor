@@ -2,6 +2,7 @@ export { attach } from "./attach";
 
 export type {
   Agrimensor,
+  AttachOptions,
   Capabilities,
   Snapshot,
   FrameMetrics,

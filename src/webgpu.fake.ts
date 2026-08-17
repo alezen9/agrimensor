@@ -149,6 +149,7 @@ export class FakeDevice {
   encoderFailure: Error | undefined;
   mapRejection: Error | undefined;
   readonly querySets: FakeQuerySet[] = [];
+  readonly buffers: FakeBuffer[] = [];
   readonly encoders: FakeCommandEncoder[] = [];
   pipelineCreationError?: Error;
 
@@ -160,6 +161,7 @@ export class FakeDevice {
   createBuffer(descriptor: GPUBufferDescriptor) {
     const buffer = new FakeBuffer(descriptor.size);
     if (this.mapRejection) buffer.mapRejection = this.mapRejection;
+    this.buffers.push(buffer);
     return buffer;
   }
   createTexture(_descriptor: GPUTextureDescriptor) {

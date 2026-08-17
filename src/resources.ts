@@ -1,10 +1,26 @@
 import { patchMethod } from "./patch";
 import { calculateTextureAllocationBytes } from "./textureBytes";
-import type { ResourceEntry, ResourceMetrics } from "./types";
+import type { AttachOptions, ResourceEntry, ResourceMetrics } from "./types";
 
 const DEFAULT_LARGEST_COUNT = 10;
 
 type TrackedResource = ResourceEntry;
+
+/**
+ * A consumer's broken hook must never reach the call that allocated or released the
+ * resource, the same containment the timing path got in alpha.6.
+ */
+const notify = (
+  hook: ((resource: ResourceEntry) => void) | undefined,
+  resource: TrackedResource,
+) => {
+  if (!hook) return;
+  try {
+    hook(resource);
+  } catch {
+    // deliberately swallowed
+  }
+};
 
 const describeTexture = (
   id: number,
@@ -46,6 +62,7 @@ const describeTexture = (
  * A shadow dies with the object it sits on.
  */
 export class ResourceRegistry {
+  private readonly options: AttachOptions;
   private bufferCount = 0;
   private textureCount = 0;
   private bufferBytes = 0;
@@ -55,6 +72,10 @@ export class ResourceRegistry {
   // alive. Entries are dropped on destroy rather than accumulating.
   private readonly tracked = new Set<TrackedResource>();
   private nextId = 1;
+
+  constructor(options: AttachOptions = {}) {
+    this.options = options;
+  }
 
   trackBuffer(buffer: GPUBuffer, descriptor: GPUBufferDescriptor) {
     const allocationInBytes = descriptor.size;
@@ -71,6 +92,9 @@ export class ResourceRegistry {
     };
     this.tracked.add(entry);
     this.observeDestroy(buffer, "buffer", allocationInBytes, entry);
+    // notified last, so the resource a consumer sees is already tracked and its
+    // destruction already observable
+    notify(this.options.onResourceCreated, entry);
   }
 
   trackTexture(texture: GPUTexture, descriptor: GPUTextureDescriptor) {
@@ -82,6 +106,7 @@ export class ResourceRegistry {
     const entry = describeTexture(this.nextId++, descriptor, allocationInBytes);
     this.tracked.add(entry);
     this.observeDestroy(texture, "texture", allocationInBytes, entry);
+    notify(this.options.onResourceCreated, entry);
   }
 
   largestResources(count = DEFAULT_LARGEST_COUNT): readonly ResourceEntry[] {
@@ -130,6 +155,7 @@ export class ResourceRegistry {
             release.isDone = true;
             registry.forget(entry);
             registry.release(kind, allocationInBytes);
+            notify(registry.options.onResourceDestroyed, entry);
           }
           return original.call(this);
         },

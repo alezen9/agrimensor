@@ -1,6 +1,6 @@
 import { ResourceRegistry } from "./resources";
 import type { TimestampRecorder } from "./timestamps";
-import type { FrameMetrics } from "./types";
+import type { AttachOptions, FrameMetrics } from "./types";
 
 export class FrameCounters {
   drawCallCount = 0;
@@ -28,12 +28,16 @@ export class FrameCounters {
 
 export class AgrimensorState {
   readonly current = new FrameCounters();
-  readonly resources = new ResourceRegistry();
+  readonly resources: ResourceRegistry;
   timestamps?: TimestampRecorder;
   readonly bundleDrawCounts = new WeakMap<GPURenderBundle, number>();
 
   private startedFrameCount = 0;
   private published?: FrameMetrics;
+
+  constructor(options: AttachOptions = {}) {
+    this.resources = new ResourceRegistry(options);
+  }
 
   beginRenderFrame() {
     // the tick that opens frame N also closes frame N-1, so the first tick publishes nothing

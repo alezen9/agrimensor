@@ -4,6 +4,28 @@ Metric names and semantics may still change before `0.1.0`. A metric whose meani
 be wrong gets corrected or removed rather than preserved, since a stable lie is worse than a
 breaking correction in a measurement library.
 
+## 0.1.0-alpha.8
+
+- `attach()` takes optional `onResourceCreated` and `onResourceDestroyed` hooks. `largestResources()`
+  answers which allocation is big; on an engine you did not write, the next question is which line
+  asked for it, and the only moment that answer exists is the call itself. Both hooks receive the
+  same `ResourceEntry` the totals report, so an origin recorded at creation joins to a reading taken
+  later by `id`. Agrimensor captures no stacks and stores nothing of its own: what to capture and how
+  long to hold it is policy, and a measurement library that decides policy stops being one.
+- The destroy hook exists so a consumer keying anything by `id` can prune it. There is no way to ask
+  which ids are still live, so without it the documented pattern would grow without bound. It fires
+  only for an explicit `destroy()`, which is the same limit the live totals already have.
+- A hook that throws cannot reach the call that fired it, matching the containment `alpha.6` gave the
+  timing path.
+- `destroy()` is documented. It was public and unmentioned.
+- Corrected the published size figures, which had drifted about 1 kB, and the one line that said
+  metric names were unstable before `1.0.0` where everything else says `0.1.0`.
+
+## 0.1.0-alpha.7
+
+- Documented the correction policy: a metric whose meaning turns out to be wrong gets corrected or
+  removed rather than preserved.
+
 ## 0.1.0-alpha.6
 
 - Agrimensor's own failures can no longer reach the caller. A fault while encoding the timestamp

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { attach } from "./attach";
 import { ResourceRegistry } from "./resources";
+import type { ResourceEntry } from "./types";
 import { asDevice, FakeDevice } from "./webgpu.fake";
 
 const rgba = (width: number, height: number): GPUTextureDescriptor => ({
@@ -206,6 +207,100 @@ describe("largestResources", () => {
 
     expect(registry.trackedCount).toBe(0);
     expect(registry.largestResources(50)).toEqual([]);
+  });
+});
+
+describe("resource hooks", () => {
+  it("reports a creation under the same id largestResources will use", () => {
+    const device = new FakeDevice();
+    const created: ResourceEntry[] = [];
+    const agrimensor = attach(asDevice(device), {
+      onResourceCreated: (resource) => created.push(resource),
+    });
+
+    device.createTexture({ ...rgba(256, 128), label: "bloomTarget" });
+
+    expect(created.length).toBe(1);
+    expect(created[0]).toMatchObject({
+      kind: "texture",
+      label: "bloomTarget",
+      allocationInBytes: 256 * 128 * 4,
+      width: 256,
+      height: 128,
+    });
+    // the join a consumer makes between an origin recorded here and a total read later
+    expect(created[0]?.id).toBe(agrimensor.largestResources()[0]?.id);
+  });
+
+  it("reports the destruction of the resource it reported creating", () => {
+    const device = new FakeDevice();
+    const created: ResourceEntry[] = [];
+    const destroyed: ResourceEntry[] = [];
+    attach(asDevice(device), {
+      onResourceCreated: (resource) => created.push(resource),
+      onResourceDestroyed: (resource) => destroyed.push(resource),
+    });
+
+    const buffer = device.createBuffer({ size: 2048, usage: 0 });
+    buffer.destroy();
+
+    // without this a consumer keying origins by id has no way to prune, since
+    // there is no way to ask which ids are still live
+    expect(destroyed.length).toBe(1);
+    expect(destroyed[0]?.id).toBe(created[0]?.id);
+  });
+
+  it("reports a destruction once even though destroy is idempotent", () => {
+    const device = new FakeDevice();
+    const destroyed: ResourceEntry[] = [];
+    attach(asDevice(device), {
+      onResourceDestroyed: (resource) => destroyed.push(resource),
+    });
+
+    const buffer = device.createBuffer({ size: 64, usage: 0 });
+    buffer.destroy();
+    buffer.destroy();
+
+    expect(destroyed.length).toBe(1);
+  });
+
+  it("contains a throwing creation hook inside the allocation that fired it", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device), {
+      onResourceCreated: () => {
+        throw new Error("consumer bug");
+      },
+    });
+
+    expect(() => device.createTexture(rgba(64, 64))).not.toThrow();
+    expect(agrimensor.snapshot().resources.liveTextureCount).toBe(1);
+  });
+
+  it("contains a throwing destruction hook inside the destroy that fired it", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device), {
+      onResourceDestroyed: () => {
+        throw new Error("consumer bug");
+      },
+    });
+
+    const buffer = device.createBuffer({ size: 64, usage: 0 });
+
+    expect(() => buffer.destroy()).not.toThrow();
+    expect(buffer.destroyCount).toBe(1);
+    expect(agrimensor.snapshot().resources.liveBufferCount).toBe(0);
+  });
+
+  it("says nothing about resources created before attach", () => {
+    const device = new FakeDevice();
+    device.createBuffer({ size: 9999, usage: 0 });
+
+    const created: ResourceEntry[] = [];
+    attach(asDevice(device), {
+      onResourceCreated: (resource) => created.push(resource),
+    });
+
+    expect(created).toEqual([]);
   });
 });
 
