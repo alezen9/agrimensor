@@ -22,6 +22,11 @@ rendering engine.
 
 It prefers exposing no metric over exposing a convenient but misleading one.
 
+Metric names and semantics may still change before `1.0.0`. A metric whose meaning turns out to
+be wrong gets corrected or removed rather than preserved, because **a stable lie is worse than a
+breaking correction in a measurement library**. Corrections are listed in `CHANGELOG.md`, and
+several of them exist because a number looked plausible and was not.
+
 ## Install
 
 ```
