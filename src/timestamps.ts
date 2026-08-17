@@ -35,6 +35,11 @@ const REGION_BYTES =
 // genuinely overlap, so out-of-order begins are normal rather than a fault.
 const IMPLAUSIBLE_SPAN_NS = 1_000_000_000;
 
+// one implausible reading is a transient: a descheduled submit, a stall, a device
+// hiccup. Only a sustained run of them means the timestamps really are not
+// comparable, and a later plausible reading clears the count.
+const IMPLAUSIBLE_READINGS_BEFORE_GIVING_UP = 5;
+
 export const mergeIntervals = (intervals: { begin: number; end: number }[]) => {
   if (intervals.length === 0) return { executionNs: 0, spanNs: 0 };
 
@@ -59,14 +64,38 @@ export const mergeIntervals = (intervals: { begin: number; end: number }[]) => {
   return { executionNs, spanNs };
 };
 
+/**
+ * Decides whether timestamps still look like they share a timeline. One implausible
+ * reading is a transient, so it takes a sustained run to give up, and any plausible
+ * reading clears the count. Never latching permanently matters: giving up is silent
+ * and would disable the headline metric for the rest of the session.
+ */
+export class PlausibilityGate {
+  isComparable = true;
+
+  private consecutiveImplausibleReadings = 0;
+
+  record(spanNs: number) {
+    if (spanNs <= IMPLAUSIBLE_SPAN_NS) {
+      this.consecutiveImplausibleReadings = 0;
+      this.isComparable = true;
+      return true;
+    }
+
+    this.consecutiveImplausibleReadings++;
+    if (
+      this.consecutiveImplausibleReadings >=
+      IMPLAUSIBLE_READINGS_BEFORE_GIVING_UP
+    ) {
+      this.isComparable = false;
+    }
+    return false;
+  }
+}
+
 export class TimestampRecorder {
   readonly isSupported: boolean;
-  isCrossSubmissionComparable = true;
-
-  // counts the frame currently being recorded. It is captured into the region when
-  // that frame closes, so the published figure always describes the same frame as
-  // the durations beside it rather than the frame in progress.
-  private pendingUninstrumentedPassCount = 0;
+  private readonly plausibility = new PlausibilityGate();
 
   private readonly device: GPUDevice;
   // captured before instrumentation so agrimensor's own resolve submissions never
@@ -115,12 +144,12 @@ export class TimestampRecorder {
     if (!this.isSupported || this.isDestroyed) return;
 
     this.closeActiveRegion();
-    this.pendingUninstrumentedPassCount = 0;
 
     const candidate = this.regions.find((region) => !region.isPending);
     if (!candidate) return;
 
     candidate.passes = [];
+    candidate.uninstrumentedPassCount = 0;
     candidate.frameNumber = frameNumber;
     this.activeRegion = candidate;
   }
@@ -130,7 +159,9 @@ export class TimestampRecorder {
    * cannot be instrumented, which the caller reports as an uninstrumented pass.
    */
   countUninstrumentedPass() {
-    this.pendingUninstrumentedPassCount++;
+    // with no active region there is no frame to attribute this to, so it is
+    // dropped rather than charged to whichever region happens to close next
+    if (this.activeRegion) this.activeRegion.uninstrumentedPassCount++;
   }
 
   claimPass(kind: PassKind): GPURenderPassTimestampWrites | undefined {
@@ -146,6 +177,10 @@ export class TimestampRecorder {
       beginningOfPassWriteIndex: slot * 2,
       endOfPassWriteIndex: slot * 2 + 1,
     };
+  }
+
+  get isCrossSubmissionComparable() {
+    return this.plausibility.isComparable;
   }
 
   getLatest() {
@@ -164,8 +199,6 @@ export class TimestampRecorder {
     const region = this.activeRegion;
     this.activeRegion = undefined;
     if (!region || region.passes.length === 0) return;
-
-    region.uninstrumentedPassCount = this.pendingUninstrumentedPassCount;
 
     const queryCount = region.passes.length * 2;
     const bytes = queryCount * BYTES_PER_QUERY;
@@ -229,10 +262,7 @@ export class TimestampRecorder {
 
     const { executionNs, spanNs } = mergeIntervals(intervals);
 
-    if (spanNs > IMPLAUSIBLE_SPAN_NS) {
-      this.isCrossSubmissionComparable = false;
-      return;
-    }
+    if (!this.plausibility.record(spanNs)) return;
 
     this.latest = {
       frameNumber: region.frameNumber,

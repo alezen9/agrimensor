@@ -17,6 +17,13 @@ export type MetricDefinition = {
   readonly description: string;
   readonly methodology: string;
   readonly caveats: readonly string[];
+  /**
+   * A metric that answers the same question more reliably. Present when this figure
+   * is easy to misread, so a dashboard showing one number can redirect. confidence
+   * describes where a value came from, which is a different axis from whether it is
+   * safe to read at face value, and the two can point opposite ways.
+   */
+  readonly preferInstead?: MetricPath;
 };
 
 export type ResourceMetrics = {

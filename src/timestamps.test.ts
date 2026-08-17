@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeIntervals } from "./timestamps";
+import { mergeIntervals, PlausibilityGate } from "./timestamps";
 
 describe("mergeIntervals", () => {
   it("reports nothing for no passes", () => {
@@ -94,5 +94,49 @@ describe("mergeIntervals", () => {
     expect(durationSum).toBe(10_859_792);
     expect(executionNs).toBe(5_286_333);
     expect(durationSum / executionNs).toBeGreaterThan(2);
+  });
+});
+
+describe("PlausibilityGate", () => {
+  const implausible = 2_000_000_000;
+  const plausible = 5_000_000;
+
+  it("assumes the timestamps are comparable until shown otherwise", () => {
+    expect(new PlausibilityGate().isComparable).toBe(true);
+  });
+
+  it("tolerates a single transient rather than giving up", () => {
+    const gate = new PlausibilityGate();
+
+    expect(gate.record(implausible)).toBe(false);
+    expect(gate.isComparable).toBe(true);
+  });
+
+  it("gives up only after a sustained run of bad readings", () => {
+    const gate = new PlausibilityGate();
+
+    for (let i = 0; i < 5; i++) gate.record(implausible);
+
+    expect(gate.isComparable).toBe(false);
+  });
+
+  it("recovers once readings look sane again", () => {
+    const gate = new PlausibilityGate();
+    for (let i = 0; i < 10; i++) gate.record(implausible);
+    expect(gate.isComparable).toBe(false);
+
+    gate.record(plausible);
+
+    expect(gate.isComparable).toBe(true);
+  });
+
+  it("does not accumulate across a good reading", () => {
+    const gate = new PlausibilityGate();
+
+    for (let i = 0; i < 4; i++) gate.record(implausible);
+    gate.record(plausible);
+    for (let i = 0; i < 4; i++) gate.record(implausible);
+
+    expect(gate.isComparable).toBe(true);
   });
 });

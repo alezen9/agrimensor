@@ -7,7 +7,10 @@ const QUANTUM_CAVEAT =
   "Chrome reports timestamps in multiples of 65.536 microseconds unless the WebGPU developer features flag is enabled, so durations are quantised to that granularity and gaps shorter than it are invisible.";
 
 const CLOCK_DRIFT_CAVEAT =
-  "Absolute durations shift with GPU frequency scaling, so figures are only comparable within a single session.";
+  "GPU frequency scaling changes these durations. Measured in a real app, halving the frame rate cap raised pass durations by roughly 40 percent for identical work, because a less loaded GPU clocks down. Durations are therefore not comparable across frame rate caps, resolutions, or any change that alters GPU load, and cannot be benchmarked at one setting and carried to another.";
+
+const OVERLAP_CAVEAT =
+  "Passes execute concurrently on the GPU, so overlapping time is counted once per pass and this sum can far exceed the real elapsed GPU time. Measured at over twice the actual span in a synthetic test, and 6.75 times in a real Three.js app on Apple Silicon, where one pass's vertex phase overlaps another's fragment phase. Read gpu.submittedRenderAndComputePassExecutionInMs for time actually spent.";
 
 const SUBMITTED_CAVEAT =
   "Covers passes submitted during that frame. GPU and CPU clocks cannot be aligned, so this is not the frame the work executed in.";
@@ -258,14 +261,14 @@ export const METRIC_DEFINITIONS: Readonly<
     name: "gpu.submittedRenderPassDurationSumInMs",
     unit: "ms",
     source: "webgpu-timestamp-query",
-    confidence: "measured",
+    confidence: "derived",
+    preferInstead: "gpu.submittedRenderAndComputePassExecutionInMs",
     description:
       "Sum of the GPU durations of every render pass submitted during that frame.",
     methodology:
       "Each render pass is given a timestamp pair through its descriptor. Every pass duration is end minus beginning, and those durations are added together.",
     caveats: [
-      "Passes execute concurrently on the GPU, so overlapping time is counted once per pass. This sum can therefore exceed the real elapsed GPU time, measured at over twice the actual span on a mixed workload.",
-      "Use gpu.submittedRenderAndComputePassExecutionInMs for time actually spent.",
+      OVERLAP_CAVEAT,
       SUBMITTED_CAVEAT,
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
@@ -275,13 +278,14 @@ export const METRIC_DEFINITIONS: Readonly<
     name: "gpu.submittedComputePassDurationSumInMs",
     unit: "ms",
     source: "webgpu-timestamp-query",
-    confidence: "measured",
+    confidence: "derived",
+    preferInstead: "gpu.submittedRenderAndComputePassExecutionInMs",
     description:
       "Sum of the GPU durations of every compute pass submitted during that frame.",
     methodology:
       "Each compute pass is given a timestamp pair through its descriptor. Every pass duration is end minus beginning, and those durations are added together.",
     caveats: [
-      "Passes execute concurrently on the GPU, so overlapping time is counted once per pass and this sum can exceed the real elapsed GPU time.",
+      OVERLAP_CAVEAT,
       SUBMITTED_CAVEAT,
       QUANTUM_CAVEAT,
       CLOCK_DRIFT_CAVEAT,
@@ -332,6 +336,7 @@ export const METRIC_DEFINITIONS: Readonly<
     caveats: [
       "Zero is the healthy value. Any non-zero value means the gpu durations are partial, which is the only signal that they undercount.",
       "A rendering engine with its own timestamp profiling enabled will drive this above zero.",
+      "A frame where every timestamp region was still reading back produces no gpu entry at all rather than a zero, so a rising gpu.resultLagFrameCount is the signal for that case.",
     ],
   },
 };

@@ -257,3 +257,45 @@ describe("submissions", () => {
     expect(agrimensor.snapshot().frame?.gpuSubmissionCount).toBe(2);
   });
 });
+
+describe("metric guidance", () => {
+  it("points the overlap-inflated sums at the figure that answers the question", () => {
+    const agrimensor = attach(asDevice(new FakeDevice()));
+    const execution = "gpu.submittedRenderAndComputePassExecutionInMs";
+
+    for (const path of [
+      "gpu.submittedRenderPassDurationSumInMs",
+      "gpu.submittedComputePassDurationSumInMs",
+    ] as const) {
+      expect(agrimensor.describe(path).preferInstead).toBe(execution);
+    }
+  });
+
+  it("does not redirect the figure that is already the right one", () => {
+    const agrimensor = attach(asDevice(new FakeDevice()));
+
+    expect(
+      agrimensor.describe("gpu.submittedRenderAndComputePassExecutionInMs")
+        .preferInstead,
+    ).toBeUndefined();
+  });
+
+  it("never rates a redirected metric above the one it points to", () => {
+    const agrimensor = attach(asDevice(new FakeDevice()));
+    const rank = { estimated: 0, derived: 1, measured: 2 } as const;
+
+    for (const path of [
+      "gpu.submittedRenderPassDurationSumInMs",
+      "gpu.submittedComputePassDurationSumInMs",
+    ] as const) {
+      const definition = agrimensor.describe(path);
+      const preferred = agrimensor.describe(definition.preferInstead!);
+
+      // confidence is about provenance, so it must never make the worse number
+      // look more trustworthy than the one it redirects to
+      expect(rank[definition.confidence]).toBeLessThanOrEqual(
+        rank[preferred.confidence],
+      );
+    }
+  });
+});

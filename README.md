@@ -5,9 +5,8 @@ Headless WebGPU metrics with explicit measurement semantics.
 An agrimensor was a Roman land surveyor. The job was not to decide where boundaries should be,
 but to sight them accurately and record what was actually there.
 
-Status: alpha. Resource accounting and per frame work counters are implemented and tested.
-**GPU timing is not implemented yet**, so agrimensor currently answers "what did this frame ask
-for", not "why was it slow". Metric names may change before `0.1.0`.
+Status: alpha. Resource accounting, per frame work counters and GPU pass timing are all
+implemented. Metric names may change before `0.1.0`.
 
 ## Why
 
@@ -64,7 +63,29 @@ const { resources, frame } = agrimensor.snapshot();
 ```
 
 `resources` is always present. `frame` is present once two `beginRenderFrame()` calls have
-happened, since the tick that opens a frame is what closes the previous one.
+happened, since the tick that opens a frame is what closes the previous one. `gpu` is present
+when the device has `timestamp-query` and a batch of timestamps has finished reading back.
+
+GPU time for a frame, against a 120fps budget of 8.33ms:
+
+```ts
+const { gpu } = agrimensor.snapshot();
+if (gpu) {
+  const gpuFrameMs =
+    gpu.submittedRenderAndComputePassExecutionInMs +
+    gpu.submittedRenderAndComputePassGapSumInMs;
+}
+```
+
+`execution` is time the GPU actually spent in passes, counting concurrent passes once. `gapSum`
+is time inside that window when no pass was running. Their sum is the elapsed GPU time for the
+frame's pass work.
+
+**Do not use the duration sums as frame time.** Passes run concurrently, so
+`submittedRenderPassDurationSumInMs` counts overlapping time once per pass. In a real Three.js
+app on Apple Silicon it read 27ms while the GPU had actually spent 4ms, a factor of 6.75. The
+sums exist for comparison with what engines report, and their `describe()` entries carry a
+`preferInstead` pointing at the figure that answers the question.
 
 Every metric can explain itself:
 
@@ -94,8 +115,13 @@ These are properties of WebGPU, not omissions.
 - **Cross submission timing, guaranteed.** The spec does not promise timestamps are comparable
   across submits ([gpuweb#4361](https://github.com/gpuweb/gpuweb/issues/4361)). Agrimensor checks
   at runtime instead of assuming, and withholds the affected metric if the check fails.
-- **Sub-millisecond precision.** Chrome quantizes timestamps to 100 microseconds. A multi
-  millisecond span is meaningful, a 0.2ms pass is not.
+- **Sub-millisecond precision.** Chrome reports timestamps in multiples of 65.536 microseconds,
+  measured, rather than the 100 microseconds its documentation states. A multi millisecond span
+  is meaningful, a 0.2ms pass is not.
+- **Comparisons across different GPU load.** GPU frequency scaling changes pass durations.
+  Halving a frame rate cap raised measured durations by roughly 40 percent for identical work,
+  because a less loaded GPU clocks down. Durations cannot be benchmarked at one setting and
+  carried to another.
 - **Physical GPU memory.** Agrimensor reports logical allocation requested through WebGPU. It does
   not know driver residency, alignment padding, or implementation internal allocations, and
   will not call any of its numbers VRAM.

@@ -129,3 +129,22 @@ const encoderWrites = (device: FakeDevice) =>
 
 const encoderComputeWrites = (device: FakeDevice) =>
   device.encoders.at(-1)?.lastComputePassDescriptor?.timestampWrites;
+
+describe("cross submission plausibility", () => {
+  it("starts out assuming the timestamps are comparable", () => {
+    expect(
+      attach(supported()).capabilities.crossSubmissionTimestampsComparable,
+    ).toBe(true);
+  });
+
+  it("survives frames that record no passes at all", () => {
+    const agrimensor = attach(supported());
+
+    for (let i = 0; i < 10; i++) agrimensor.beginRenderFrame();
+
+    expect(agrimensor.capabilities.crossSubmissionTimestampsComparable).toBe(
+      true,
+    );
+    expect(agrimensor.snapshot().gpu).toBeUndefined();
+  });
+});
