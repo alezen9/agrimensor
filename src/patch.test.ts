@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { patchMethod, RestoreRegistry } from "../../src/patch";
+import { patchMethod, RestoreRegistry } from "./patch";
 
 class Subject {
   greet(name: string) {

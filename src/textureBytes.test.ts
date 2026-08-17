@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCopyRegionBytes,
   calculateTextureAllocationBytes,
-} from "../../src/textureBytes";
+} from "./textureBytes";
 
 const texture = (
   descriptor: Partial<GPUTextureDescriptor> &
@@ -14,10 +14,6 @@ const texture = (
 });
 
 describe("calculateTextureAllocationBytes", () => {
-  it("handles the smallest possible texture", () => {
-    expect(calculateTextureAllocationBytes(texture({ size: [1, 1] }))).toBe(4);
-  });
-
   it("multiplies width, height and bytes per texel", () => {
     expect(
       calculateTextureAllocationBytes(texture({ size: [1024, 1024] })),

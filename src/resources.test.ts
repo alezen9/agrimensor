@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { attach } from "../../src/attach";
-import { asDevice, FakeDevice } from "../fakes/webgpu";
+import { attach } from "./attach";
+import { asDevice, FakeDevice } from "./webgpu.fake";
 
 const rgba = (width: number, height: number): GPUTextureDescriptor => ({
   size: [width, height],
@@ -32,17 +32,6 @@ describe("resource tracking", () => {
     expect(resources.liveBufferAllocationSumInBytes).toBe(1280);
   });
 
-  it("computes texture bytes from the descriptor", () => {
-    const device = new FakeDevice();
-    const agrimensor = attach(asDevice(device));
-
-    device.createTexture(rgba(64, 64));
-
-    const { resources } = agrimensor.snapshot();
-    expect(resources.liveTextureCount).toBe(1);
-    expect(resources.liveTextureAllocationSumInBytes).toBe(64 * 64 * 4);
-  });
-
   it("adds buffers and textures into the total", () => {
     const device = new FakeDevice();
     const agrimensor = attach(asDevice(device));
@@ -51,6 +40,8 @@ describe("resource tracking", () => {
     device.createTexture(rgba(16, 16));
 
     const { resources } = agrimensor.snapshot();
+    expect(resources.liveTextureCount).toBe(1);
+    expect(resources.liveTextureAllocationSumInBytes).toBe(16 * 16 * 4);
     expect(resources.liveResourceAllocationSumInBytes).toBe(1000 + 16 * 16 * 4);
   });
 

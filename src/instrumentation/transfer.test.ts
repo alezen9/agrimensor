@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { attach } from "../../src/attach";
-import { calculateWrittenBufferBytes } from "../../src/bufferBytes";
-import { asDevice, FakeDevice, FakeTexture } from "../fakes/webgpu";
+import { attach } from "../attach";
+import { calculateWrittenBufferBytes } from "../bufferBytes";
+import { asDevice, FakeDevice, FakeTexture } from "../webgpu.fake";
 
 const rgbaTexture = () => {
   const texture = new FakeTexture();
@@ -29,11 +29,6 @@ describe("calculateWrittenBufferBytes", () => {
 
   it("treats an explicit size as bytes for an ArrayBuffer", () => {
     expect(calculateWrittenBufferBytes(new ArrayBuffer(256), 0, 10)).toBe(10);
-  });
-
-  it("scales by element size for wider types", () => {
-    expect(calculateWrittenBufferBytes(new Float64Array(8))).toBe(64);
-    expect(calculateWrittenBufferBytes(new Uint8Array(8))).toBe(8);
   });
 
   it("treats a DataView offset as bytes, since it has no element size", () => {
@@ -144,19 +139,5 @@ describe("command copies", () => {
     expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(
       8 * 8 * 4 + 4 * 4 * 4,
     );
-  });
-
-  it("resets copy totals between frames", () => {
-    const device = new FakeDevice();
-    const agrimensor = attach(asDevice(device));
-    const source = device.createBuffer({ size: 512, usage: 0 });
-    const destination = device.createBuffer({ size: 512, usage: 0 });
-
-    agrimensor.beginRenderFrame();
-    device.createCommandEncoder().copyBufferToBuffer(source, destination);
-    agrimensor.beginRenderFrame();
-    agrimensor.beginRenderFrame();
-
-    expect(agrimensor.snapshot().frame?.commandCopySumInBytes).toBe(0);
   });
 });

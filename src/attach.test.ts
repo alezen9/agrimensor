@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { attach } from "../../src/attach";
-import { METRIC_DEFINITIONS } from "../../src/definitions";
-import { asDevice, FakeDevice } from "../fakes/webgpu";
-import type { MetricPath } from "../../src/types";
+import { attach } from "./attach";
+import { METRIC_DEFINITIONS } from "./definitions";
+import { asDevice, FakeDevice } from "./webgpu.fake";
+import type { MetricPath } from "./types";
 
 describe("attach", () => {
   it("refuses a second instance on the same device", () => {
