@@ -55,8 +55,10 @@ agrimensor.beginRenderFrame();
 renderer.render(scene, camera);
 ```
 
-Read whenever you want. `snapshot()` is synchronous, never blocks, and never forces a GPU
-readback:
+Read whenever you want. `snapshot()` is synchronous, never blocks and never forces a GPU
+readback. It does allocate: roughly three small objects per call, so calling it every frame at
+120Hz is a few hundred short-lived objects per second. That is trivial for a garbage collector
+but worth knowing if you are chasing frame-time spikes.
 
 ```ts
 const { resources, frame } = agrimensor.snapshot();
@@ -133,6 +135,42 @@ Every metric can explain itself:
 agrimensor.describe("resources.liveTextureAllocationSumInBytes");
 ```
 
+## Using it with three.js
+
+Attach **after** `renderer.init()`, to the device three created itself:
+
+```ts
+const renderer = new WebGPURenderer({ canvas });
+await renderer.init();
+
+const { backend } = renderer;
+if ("device" in backend && backend.device instanceof GPUDevice) {
+  const agrimensor = attach(backend.device);
+}
+```
+
+Two traps, both of which cost a real afternoon:
+
+**Do not hand three your own device** unless you enumerate every adapter feature into
+`requiredFeatures` yourself. Three does that only when it creates the device
+(`WebGPUBackend.js:209`), so a hand-made device silently loses whatever you forgot. In one real
+case that would have dropped `indirect-first-instance`, collapsing a grass LOD scheme to a
+single draw, and `core-features-and-limits`, zeroing MSAA. Letting three own the device costs
+you only its startup allocations, which is the better trade.
+
+**`renderer.backend` is typed as the abstract `Backend`**, which has no `device`. The `in` check
+above narrows it without a cast.
+
+Then mark your frames where you actually render:
+
+```ts
+agrimensor.beginRenderFrame();
+renderer.render(scene, camera);
+```
+
+If three is configured with `trackTimestamp: true` it sets its own `timestampWrites`, agrimensor
+yields to it, and those passes appear in `gpu.uninstrumentedPassCount` instead of the timings.
+
 ## Why the frame marker exists
 
 Agrimensor cannot infer where your frame begins. `requestAnimationFrame` is not a reliable proxy:
@@ -150,6 +188,11 @@ submit per frame to resolve timestamps.
 
 Measured on an Apple M2 Pro with `npm run bench`, against the built artifact. No zero-overhead
 claim is made. Method and caveats are in `spike/BENCHMARK.md`.
+
+Size: the published artifact is 47.8 kB raw and 11.8 kB gzipped, shipped unminified so your
+bundler can minify and so the source stays auditable. Minified it is 31.6 kB, or **9.1 kB
+gzipped**, which is what an application bundle actually carries. There is no build-time flag, so
+gating agrimensor behind a runtime flag keeps it in the bundle.
 
 ## What it cannot measure
 

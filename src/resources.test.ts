@@ -208,3 +208,59 @@ describe("largestResources", () => {
     expect(registry.largestResources(50)).toEqual([]);
   });
 });
+
+describe("resource identity and descriptor facts", () => {
+  it("gives identical textures distinct ids, so a keyed list is safe", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device));
+
+    device.createTexture(rgba(128, 128));
+    device.createTexture(rgba(128, 128));
+
+    const [first, second] = agrimensor.largestResources();
+    expect(first?.allocationInBytes).toBe(second?.allocationInBytes);
+    expect(first?.id).not.toBe(second?.id);
+  });
+
+  it("never reuses an id after a resource is destroyed", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device));
+
+    const first = device.createBuffer({ size: 64, usage: 0 });
+    const firstId = agrimensor.largestResources()[0]?.id;
+    first.destroy();
+    device.createBuffer({ size: 64, usage: 0 });
+
+    // telling "still alive" from "allocated again" depends on this
+    expect(agrimensor.largestResources()[0]?.id).not.toBe(firstId);
+  });
+
+  it("carries usage through untouched, so render targets are separable", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device));
+    const RENDER_ATTACHMENT = 0x10;
+    const TEXTURE_BINDING = 0x04;
+
+    device.createTexture({ ...rgba(64, 64), usage: RENDER_ATTACHMENT });
+    device.createTexture({ ...rgba(32, 32), usage: TEXTURE_BINDING });
+
+    const targets = agrimensor
+      .largestResources()
+      .filter((entry) => (entry.usage & RENDER_ATTACHMENT) !== 0);
+
+    expect(targets.length).toBe(1);
+    expect(targets[0]?.width).toBe(64);
+  });
+
+  it("reports the sample and mip counts that explain the byte figure", () => {
+    const device = new FakeDevice();
+    const agrimensor = attach(asDevice(device));
+
+    device.createTexture({ ...rgba(64, 64), sampleCount: 4 });
+
+    const [entry] = agrimensor.largestResources();
+    expect(entry?.sampleCount).toBe(4);
+    expect(entry?.mipLevelCount).toBe(1);
+    expect(entry?.allocationInBytes).toBe(64 * 64 * 4 * 4);
+  });
+});

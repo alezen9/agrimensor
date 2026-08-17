@@ -7,6 +7,7 @@ const DEFAULT_LARGEST_COUNT = 10;
 type TrackedResource = ResourceEntry;
 
 const describeTexture = (
+  id: number,
   descriptor: GPUTextureDescriptor,
   allocationInBytes: number,
 ): TrackedResource => {
@@ -24,11 +25,15 @@ const describeTexture = (
         };
 
   return {
+    id,
     kind: "texture",
     label: descriptor.label ?? "",
     allocationInBytes,
+    usage: descriptor.usage,
     format: descriptor.format,
     ...extent,
+    sampleCount: descriptor.sampleCount ?? 1,
+    mipLevelCount: descriptor.mipLevelCount ?? 1,
   };
 };
 
@@ -49,6 +54,7 @@ export class ResourceRegistry {
   // holds descriptor facts and never the GPU object, so it cannot keep a resource
   // alive. Entries are dropped on destroy rather than accumulating.
   private readonly tracked = new Set<TrackedResource>();
+  private nextId = 1;
 
   trackBuffer(buffer: GPUBuffer, descriptor: GPUBufferDescriptor) {
     const allocationInBytes = descriptor.size;
@@ -57,9 +63,11 @@ export class ResourceRegistry {
     this.recordPeak();
 
     const entry: TrackedResource = {
+      id: this.nextId++,
       kind: "buffer",
       label: descriptor.label ?? "",
       allocationInBytes,
+      usage: descriptor.usage,
     };
     this.tracked.add(entry);
     this.observeDestroy(buffer, "buffer", allocationInBytes, entry);
@@ -71,7 +79,7 @@ export class ResourceRegistry {
     this.textureBytes += allocationInBytes;
     this.recordPeak();
 
-    const entry = describeTexture(descriptor, allocationInBytes);
+    const entry = describeTexture(this.nextId++, descriptor, allocationInBytes);
     this.tracked.add(entry);
     this.observeDestroy(texture, "texture", allocationInBytes, entry);
   }

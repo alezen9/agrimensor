@@ -78,15 +78,30 @@ export type Snapshot = {
 };
 
 export type ResourceEntry = {
+  /**
+   * Stable for the life of the resource and never reused. Two identical textures
+   * are separate entries with separate ids, so a consumer can key a list safely,
+   * group duplicates itself, and tell "the same resource is still alive" from
+   * "an identical one was allocated again".
+   */
+  readonly id: number;
   readonly kind: "buffer" | "texture";
   /** The label the application gave the resource, empty when it set none. */
   readonly label: string;
   readonly allocationInBytes: number;
+  /**
+   * The usage flags from the descriptor, unmodified. Bit-test against
+   * GPUTextureUsage or GPUBufferUsage: RENDER_ATTACHMENT separates render targets
+   * from asset textures at a glance.
+   */
+  readonly usage: number;
   /** Texture only, and the reason a shape is recognisable without a label. */
   readonly format?: GPUTextureFormat;
   readonly width?: number;
   readonly height?: number;
   readonly depthOrArrayLayers?: number;
+  readonly sampleCount?: number;
+  readonly mipLevelCount?: number;
 };
 
 export type Capabilities = {
