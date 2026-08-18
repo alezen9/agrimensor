@@ -13,13 +13,13 @@ the one who sighted them accurately and recorded what was actually there.
 - Real GPU time per frame from timestamp queries, counting concurrent passes once.
 - A methodology and caveat list for every metric, readable at runtime via `describe()`.
 
-**What you do not get** is anything WebGPU cannot honestly report: no VRAM figure, no CPU to GPU
-timeline bridge, no number that looks convenient and means something else. Those gaps are listed
-under [Watch out for](#watch-out-for) rather than papered over.
+**What you do not get** is anything WebGPU cannot honestly report. There is no VRAM figure and
+no bridge between the CPU and GPU clocks, because the API exposes neither. Those gaps are listed
+under [Watch out for](#watch-out-for).
 
 The metrics below are a contract: a rename or a change of meaning gets a version bump and an
-entry in `CHANGELOG.md`. That contract bends one way. A metric that turns out to mean the wrong
-thing gets corrected or removed rather than kept, because a stable lie is worse than a breaking
+entry in `CHANGELOG.md`. The exception is a metric that turns out to mean the wrong thing, which
+gets corrected or removed rather than kept, because a stable lie is worse than a breaking
 correction in a measurement library. This is 0.x, so such a correction can land in a minor
 version, and several already have.
 
@@ -72,9 +72,9 @@ renderer.render(scene, camera);
 ```
 
 Agrimensor cannot infer where your frame begins, and `requestAnimationFrame` is not a reliable
-proxy, since an app that renders every other tick or off the main loop would be measured wrong.
-So you declare it. Without the marker the per frame groups stay `undefined` rather than quietly
-wrong.
+proxy, since an app that renders every other tick or off the main loop would be measured wrong,
+so you declare it yourself. Without the marker the per frame groups stay `undefined` instead of
+quietly wrong.
 
 ## Metrics
 
@@ -259,8 +259,8 @@ attach(device, {
 ```
 
 Both hooks receive the entry `largestResources()` returns, so anything keyed by `id` joins to a
-later reading. Agrimensor captures no stacks itself: when to capture and how long to hold it are
-policy, and a measurement library that decides policy stops being one.
+later reading. Agrimensor captures no stacks itself, since when to capture and how long to keep
+it depend on what you are chasing.
 
 They fire synchronously inside the allocating call, so record and defer, keep the size filter
 before the capture, and do not call back into the device. A hook that throws is swallowed.

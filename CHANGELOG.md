@@ -6,8 +6,8 @@ such a correction lands in a minor version with an entry here.
 
 ## 0.1.0
 
-First release outside the alpha line. No metric changed its name or meaning; the entries below
-are the history of how these figures arrived at their current definitions.
+First release outside the alpha line. No metric changed its name or meaning; the alpha entries
+below show how these figures got their current definitions.
 
 - README rewritten as a reference. It now shows the full `snapshot()` shape with a line on every
   field, collects every caveat into one section, and lists the whole API. It previously described
@@ -22,8 +22,8 @@ are the history of how these figures arrived at their current definitions.
   answers which allocation is big; on an engine you did not write, the next question is which line
   asked for it, and the only moment that answer exists is the call itself. Both hooks receive the
   same `ResourceEntry` the totals report, so an origin recorded at creation joins to a reading taken
-  later by `id`. Agrimensor captures no stacks and stores nothing of its own: what to capture and how
-  long to hold it is policy, and a measurement library that decides policy stops being one.
+  later by `id`. Agrimensor captures no stacks and stores nothing of its own, since when to capture
+  and how long to keep it depend on what the consumer is chasing.
 - The destroy hook exists so a consumer keying anything by `id` can prune it. There is no way to ask
   which ids are still live, so without it the documented pattern would grow without bound. It fires
   only for an explicit `destroy()`, which is the same limit the live totals already have.
