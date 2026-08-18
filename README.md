@@ -2,30 +2,16 @@
 
 Headless WebGPU metrics with explicit measurement semantics.
 
-An agrimensor was a Roman land surveyor. The job was not to decide where boundaries should be,
-but to sight them accurately and record what was actually there.
+An agrimensor was a Roman land surveyor, whose job was not to decide where boundaries should be
+but to sight them accurately and record what was actually there. This library attaches to a
+`GPUDevice`, depends on no rendering engine, and states for every figure what it measures and
+what it does not. It prefers exposing no metric over exposing a convenient but misleading one.
 
-Status: alpha. Resource accounting, per frame work counters and GPU pass timing are all
-implemented. Metric names may change before `0.1.0`.
-
-## Why
-
-I wanted to know what my WebGPU renderer was actually doing, and found that the numbers
-available to me did not mean what their names suggested. A value called `gpuFrameTime` turned
-out to be a sum of individual pass durations, which cannot answer whether the GPU was busy. A
-memory total counted compressed textures as one byte each and added shader source string
-length into the same figure.
-
-Agrimensor exposes a small set of metrics and, for every one of them, states exactly what it
-measures, how, and what it does not represent. It attaches to a `GPUDevice` and depends on no
-rendering engine.
-
-It prefers exposing no metric over exposing a convenient but misleading one.
-
-Metric names and semantics may still change before `0.1.0`. A metric whose meaning turns out to
-be wrong gets corrected or removed rather than preserved, because **a stable lie is worse than a
-breaking correction in a measurement library**. Corrections are listed in `CHANGELOG.md`, and
-several of them exist because a number looked plausible and was not.
+Status: alpha. Every release before `0.1.0` is an alpha and `latest` follows the newest one, so a
+plain install gives you a prerelease until then. Names and semantics may still change: a metric
+whose meaning turns out to be wrong gets corrected or removed rather than preserved, because a
+stable lie is worse than a breaking correction in a measurement library. Corrections are listed
+in `CHANGELOG.md`.
 
 ## Install
 
@@ -33,10 +19,7 @@ several of them exist because a number looked plausible and was not.
 npm i agrimensor
 ```
 
-Every release before `0.1.0` is an alpha and `latest` follows the newest one, so a plain install
-gives you a prerelease until then.
-
-## Use
+## Quick start
 
 ```ts
 import { attach } from "agrimensor";
@@ -45,46 +28,34 @@ const adapter = await navigator.gpu.requestAdapter();
 if (!adapter) throw new Error("WebGPU is not available");
 
 const requiredFeatures: GPUFeatureName[] = [];
-if (adapter.features.has("timestamp-query")) {
+if (adapter.features.has("timestamp-query"))
   requiredFeatures.push("timestamp-query");
-}
 
 const device = await adapter.requestDevice({ requiredFeatures });
-
 const agrimensor = attach(device);
-
-// then hand the same device to a renderer, or use it directly
 ```
 
-Call `beginRenderFrame()` once per rendered frame, immediately before the frame's GPU work:
+Mark your frames, then read whenever you like:
 
 ```ts
 agrimensor.beginRenderFrame();
 renderer.render(scene, camera);
+
+const { resources, frame, gpu } = agrimensor.snapshot();
 ```
 
-Read whenever you want. `snapshot()` is synchronous, never blocks and never forces a GPU
-readback. It does allocate: roughly three small objects per call, so calling it every frame at
-120Hz is a few hundred short-lived objects per second. That is trivial for a garbage collector
-but worth knowing if you are chasing frame-time spikes.
+`resources` is always present. `frame` appears once two `beginRenderFrame()` calls have happened,
+since the tick that opens a frame is what closes the previous one. `gpu` appears when the device
+has `timestamp-query` and a batch of timestamps has finished reading back.
 
-```ts
-const { resources, frame } = agrimensor.snapshot();
-```
+## Levels and flows read differently
 
-`resources` is always present. `frame` is present once two `beginRenderFrame()` calls have
-happened, since the tick that opens a frame is what closes the previous one. `gpu` is present
-when the device has `timestamp-query` and a batch of timestamps has finished reading back.
+`resources` are **levels**: the state right now. Reading them on a timer is correct.
 
-### Levels and flows read differently
-
-`resources` are **levels**. They describe the state right now, so reading them on a timer is
-correct and gives you the answer you expect.
-
-`frame` and `gpu` are **flows**. Each describes exactly one frame, the most recently completed
-one, and is never an average. Reading them on a timer samples an arbitrary frame, which will
-look unstable and will misreport anything that varies between frames. Read them every frame
-and aggregate yourself:
+`frame` and `gpu` are **flows**: each describes exactly one frame and is never an average.
+Sampling them on a timer reads an arbitrary frame, which looks unstable and misreports anything
+that varies between frames. This is the single easiest way to misread the library, and it has
+produced false bug reports. Read them every frame and aggregate yourself:
 
 ```ts
 const samples: number[] = [];
@@ -96,15 +67,57 @@ const onRenderFrame = () => {
   const { frame } = agrimensor.snapshot();
   if (frame) samples.push(frame.drawCallCount);
 };
-
-// then report min, max or a mean over samples, and clear it
 ```
 
-This is the single easiest way to misread the library. Sampling once a second produced a draw
-count that looked wrong and a gap that looked unstable, and both were artefacts of sampling one
-frame out of a hundred and twenty.
+## Metrics
 
-GPU time for a frame, against a 120fps budget of 8.33ms:
+Names carry their unit: `Count`, `InBytes`, `InMs`. Every metric can also explain itself at
+runtime through `describe()`, which returns the full methodology and caveat list.
+
+### `resources`
+
+Levels. Always present, no frame marker needed.
+
+| Metric                              | Measures                                                                                                  | Does not mean                                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `liveBufferCount`                   | Buffers created through the device and not explicitly destroyed                                           | A buffer freed by garbage collection without `destroy()` stays counted, so this drifts up over a long session |
+| `liveTextureCount`                  | The same for textures                                                                                     | Canvas textures from `getCurrentTexture()` never appear, since they are not created through `createTexture()` |
+| `liveBufferAllocationSumInBytes`    | Sum of the declared `size` of live buffers                                                                | Not VRAM. Excludes staging buffers, alignment padding, pipeline caches and driver allocations                 |
+| `liveTextureAllocationSumInBytes`   | Logical allocation of live textures, from format block size across the full mip chain, layers and samples | Calculated from the descriptor, not read from the driver. Depth formats are modelled, not reported            |
+| `liveResourceAllocationSumInBytes`  | The two sums added                                                                                        | Inherits every caveat of both. Not VRAM                                                                       |
+| `liveResourceAllocationPeakInBytes` | The highest that total has reached since attach                                                           | Sampled only on creation, so a peak between two creations is missed. Never decreases                          |
+
+### `frame`
+
+One frame, the most recently completed one. Never an average.
+
+| Metric                                    | Measures                                                                                       | Does not mean                                                                                                |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `renderedFrameCount`                      | Sequence number of the frame these figures describe                                            | Not a `requestAnimationFrame` count, not an engine frame count, not presented frames                         |
+| `drawCallCount`                           | `draw`, `drawIndexed`, `drawIndirect`, `drawIndexedIndirect`. Bundle draws re-added per replay | Commands recorded, not primitives or instances. An indirect draw is one command whatever the GPU buffer says |
+| `computeDispatchCount`                    | `dispatchWorkgroups` and its indirect form                                                     | Commands, not workgroups or invocations                                                                      |
+| `renderPassCount`                         | Render passes begun this frame                                                                 | Begun, not completed successfully                                                                            |
+| `computePassCount`                        | Compute passes begun this frame                                                                | Begun, not completed successfully                                                                            |
+| `gpuSubmissionCount`                      | `queue.submit()` calls, excluding agrimensor's own                                             | Calls, not command buffers. One engine frame may span several submissions                                    |
+| `queueWriteSumInBytes`                    | Bytes handed to `writeBuffer()` and `writeTexture()`                                           | Data handed to the API, not bus traffic. Excludes `mappedAtCreation` and `mapAsync` writes                   |
+| `commandCopySumInBytes`                   | Bytes described by the four `copy*` commands                                                   | Bytes described, not bytes moved: an unsubmitted command buffer still counts. Not a CPU readback             |
+| `pipelineCreationCount`                   | Pipelines requested, sync and async, including ones that throw                                 | Steady state should be zero. Non-zero mid-run means pipelines are being built during rendering               |
+| `pipelineCreationBlockingDurationSumInMs` | Wall-clock time the calling thread spent inside synchronous pipeline creation                  | Blocking time on the calling thread, not GPU time and not total shader compilation cost                      |
+
+### `gpu`
+
+One frame, several frames behind the `frame` group. Requires `timestamp-query`.
+
+| Metric                                       | Measures                                                                        | Does not mean                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `submittedRenderAndComputePassExecutionInMs` | **GPU time actually spent in passes**, counting concurrent passes once          | Passes only. Copies, queue writes, clears and compositing carry no timestamps and are excluded                       |
+| `submittedRenderAndComputePassGapSumInMs`    | Time inside that frame's pass window when no pass was running                   | Not purely idle: untimeable work such as copies lives here. Genuine idle only when `commandCopySumInBytes` is 0      |
+| `submittedRenderPassDurationSumInMs`         | Sum of individual render pass durations                                         | Overlapping passes are counted once per pass. Measured 27ms where real GPU time was 4ms. Prefer the execution figure |
+| `submittedComputePassDurationSumInMs`        | The same for compute passes                                                     | Same overlap inflation                                                                                               |
+| `uninstrumentedPassCount`                    | Passes agrimensor could not time, and which are missing from every figure above | Zero is healthy. Non-zero is the only signal that the gpu durations undercount                                       |
+| `resultLagFrameCount`                        | How many rendered frames back the figures above describe                        | Nothing is ever relabelled to the current frame; the lag grows if readback is slow                                   |
+
+Elapsed GPU time for the frame's pass work is execution plus gap:
 
 ```ts
 const { gpu } = agrimensor.snapshot();
@@ -115,39 +128,77 @@ if (gpu) {
 }
 ```
 
-`execution` is time the GPU actually spent in passes, counting concurrent passes once. `gapSum`
-is time inside that window when no pass was running. Their sum is the elapsed GPU time for the
-frame's pass work.
+## API
 
-**Do not use the duration sums as frame time.** Passes run concurrently, so
-`submittedRenderPassDurationSumInMs` counts overlapping time once per pass. In a real Three.js
-app on Apple Silicon it read 27ms while the GPU had actually spent 4ms, a factor of 6.75. The
-sums exist for comparison with what engines report, and their `describe()` entries carry a
-`preferInstead` pointing at the figure that answers the question.
+### `attach(device, options?)`
 
-Totals tell you how much; `largestResources()` tells you which allocation to go and look at:
+Patches the device and returns an instance. Throws if that device already has one. Resources
+created before this call are invisible to every figure.
+
+### `beginRenderFrame()`
+
+Call once per rendered frame, immediately before the frame's GPU work. Agrimensor cannot infer
+where your frame begins: `requestAnimationFrame` is not a reliable proxy, since an app that
+renders every other tick or off the main loop would be measured wrong. Without this call, `frame`
+and `gpu` stay `undefined` and `capabilities.frameScope` is `false`, rather than quietly wrong.
+
+### `snapshot()`
+
+Synchronous, never blocks, never forces a GPU readback. Allocates roughly three small objects per
+call, so calling it every frame at 120Hz is a few hundred short-lived objects per second.
+
+### `largestResources(count = 10)`
+
+Live resources by allocated bytes, biggest first. Totals say how much; this says which allocation
+to go and look at. Deliberately outside `snapshot()` so the per-frame path stays cheap. It is not
+a resource explorer: no full enumeration, no contents, no lifetime history.
 
 ```ts
 agrimensor.largestResources(5);
-// [{ kind: "texture", label: "bloomTarget", allocationInBytes: 33554432,
-//    format: "rgba16float", width: 2048, height: 2048 }, ...]
+// [{ id: 42, kind: "texture", label: "bloomTarget", allocationInBytes: 33554432,
+//    usage: 16, format: "rgba16float", width: 2048, height: 2048,
+//    depthOrArrayLayers: 1, sampleCount: 1, mipLevelCount: 1 }, ...]
 ```
 
-It is deliberately not part of `snapshot()`, which stays cheap enough to call every frame.
-Labels come from whatever the application set, and are empty when it set none, which is why the
-format and dimensions are included: a texture is recognisable by its shape alone.
+`id` is stable for the life of a resource and never reused, so a keyed list is safe and "still
+alive" is distinguishable from "allocated again". `label` is whatever the application set and is
+empty when it set none, which is why format and dimensions are included: a texture is
+recognisable by its shape alone. `usage` is the raw descriptor flags, so bit-testing
+`GPUTextureUsage.RENDER_ATTACHMENT` separates render targets from asset textures.
 
-Every metric can explain itself:
+### `describe(metric)`
+
+The full definition of any metric path: description, methodology, caveats, unit, source, and
+`confidence` of `"measured"` or `"derived"`. Figures that are easy to misread also carry
+`preferInstead`, pointing at the metric that answers the question better.
 
 ```ts
-agrimensor.describe("resources.liveTextureAllocationSumInBytes");
+agrimensor.describe("gpu.submittedRenderPassDurationSumInMs").preferInstead;
+// "gpu.submittedRenderAndComputePassExecutionInMs"
 ```
+
+### `capabilities`
+
+A fresh frozen object per read, so reactive state sees changes.
+
+| Field                                 | True when                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `resourceTracking`                    | Always                                                                      |
+| `frameScope`                          | `beginRenderFrame()` has been called at least once                          |
+| `timestampQueries`                    | The device has the `timestamp-query` feature                                |
+| `crossSubmissionTimestampsComparable` | Timestamps still pass the runtime plausibility check. False withholds `gpu` |
+
+### `destroy()`
+
+Removes every patch from the device, releases agrimensor's own query set and buffers, and makes
+any later call on the instance throw rather than return a stale figure. Your own resources are
+untouched, and `attach()` can be called on that device again.
 
 ## Where a resource came from
 
-`largestResources()` tells you which allocation is big. On an engine you did not write, the next
-question is which line of code asked for it, and no total can answer that. The only moment the
-answer exists is the call itself, so agrimensor hands you that moment and keeps nothing:
+`largestResources()` says which allocation is big. On an engine you did not write, the next
+question is which line asked for it, and the only moment that answer exists is the call itself.
+Agrimensor hands you that moment and keeps nothing:
 
 ```ts
 const origins = new Map<number, string>();
@@ -161,39 +212,23 @@ const agrimensor = attach(device, {
 });
 ```
 
-Both hooks receive the same `ResourceEntry` shape `largestResources()` returns, and `id` is
-stable and never reused, so anything you key by it joins cleanly against a later reading.
+Both hooks receive the same entry `largestResources()` returns, so anything keyed by `id` joins
+cleanly against a later reading. Agrimensor captures no stacks itself: when to capture, how much
+to trim and how long to hold it are policy, and a measurement library that decides policy stops
+being one.
 
-What agrimensor deliberately does not do is capture the stack itself. When to capture, how much
-to trim, how long to hold it and how much memory that is allowed to cost are policy, and a
-measurement library that decides policy stops being one.
-
-- The hooks fire **synchronously inside the allocating call**. Do no work there beyond recording,
-  and do not call back into the device from them. `new Error().stack` is expensive enough that
-  capturing it for every allocation during asset load is noticeable, which is why the size filter
-  above comes before the capture rather than after it.
-- A hook that throws is swallowed, so a bug in yours cannot reach the `createTexture()` that
-  fired it.
-- Neither hook fires for resources created before `attach()`, nor for agrimensor's own
-  timestamp buffers.
+- Both fire **synchronously inside the allocating call**. Record and defer, and do not call back
+  into the device from them. `new Error().stack` is expensive enough that capturing it for every
+  allocation during asset load is noticeable, which is why the size filter above comes first.
+- A hook that throws is swallowed and cannot reach the `createTexture()` that fired it.
+- Neither fires for resources created before `attach()`, nor for agrimensor's own buffers.
 - `onResourceDestroyed` fires only for an explicit `destroy()`. A resource dropped to garbage
-  collection never calls it, so a map keyed by id has to tolerate entries that outlive their
-  resource. This is the same limit the live totals have.
+  collection never calls it, the same limit the live totals have.
 - They say where a resource was created, not why it is still alive. This is not a leak detector.
 
-The top frames of a captured stack are agrimensor's own, and a minified production build gives
-you useless frames without sourcemaps. On V8, `Error.captureStackTrace(holder, fn)` trims the
-instrumentation off the top cleanly.
-
-## Detaching
-
-`destroy()` removes every patch from the device, releases agrimensor's own query set and
-buffers, and makes any later call on the instance throw rather than return a stale figure. Your
-own resources are untouched. After it, `attach()` can be called on that device again.
-
-```ts
-agrimensor.destroy();
-```
+Captured stacks start with agrimensor's own frames, and a minified production build gives useless
+frames without sourcemaps. On V8, `Error.captureStackTrace(holder, fn)` trims the instrumentation
+off the top.
 
 ## Using it with three.js
 
@@ -209,82 +244,54 @@ if ("device" in backend && backend.device instanceof GPUDevice) {
 }
 ```
 
-Two traps, both of which cost a real afternoon:
+`renderer.backend` is typed as the abstract `Backend`, which has no `device`, so the `in` check
+narrows it without a cast.
 
 **Do not hand three your own device** unless you enumerate every adapter feature into
 `requiredFeatures` yourself. Three does that only when it creates the device
 (`WebGPUBackend.js:209`), so a hand-made device silently loses whatever you forgot. In one real
-case that would have dropped `indirect-first-instance`, collapsing a grass LOD scheme to a
-single draw, and `core-features-and-limits`, zeroing MSAA. Letting three own the device costs
-you only its startup allocations, which is the better trade.
-
-**`renderer.backend` is typed as the abstract `Backend`**, which has no `device`. The `in` check
-above narrows it without a cast.
-
-Then mark your frames where you actually render:
-
-```ts
-agrimensor.beginRenderFrame();
-renderer.render(scene, camera);
-```
+case that would have dropped `indirect-first-instance`, collapsing a grass LOD scheme to a single
+draw, and `core-features-and-limits`, zeroing MSAA.
 
 If three is configured with `trackTimestamp: true` it sets its own `timestampWrites`, agrimensor
 yields to it, and those passes appear in `gpu.uninstrumentedPassCount` instead of the timings.
 
-## Why the frame marker exists
-
-Agrimensor cannot infer where your frame begins. `requestAnimationFrame` is not a reliable proxy:
-an app that renders every other rAF tick, or renders off the main loop entirely, would be
-measured wrong. You know where your frame is, so you declare it. Without
-`beginRenderFrame()`, per frame metrics are `undefined` and `capabilities.frameScope` is
-`false`, rather than quietly wrong.
-
-## Measured overhead
-
-**0.013 ms of CPU per frame** on a frame with 900 draw calls, 6 render passes, 1 compute pass
-and 1 submit, which is 0.16% of a 120fps budget. Per intercepted call: `draw()` +14ns,
-`beginRenderPass()` +593ns, `createBuffer()` +110ns, `queue.submit()` +1900ns, plus one extra
-submit per frame to resolve timestamps.
-
-Measured on an Apple M2 Pro with `npm run bench`, against the built artifact. No zero-overhead
-claim is made. Method and caveats are in `spike/BENCHMARK.md`.
-
-Size: the published artifact is 48.7 kB raw and 12.1 kB gzipped, shipped unminified so your
-bundler can minify and so the source stays auditable. Minified it is 36.8 kB, or **9.7 kB
-gzipped**, which is what an application bundle actually carries. That last pair comes from this
-project's own minifier, so your bundler will land near it rather than exactly on it. There is no
-build-time flag, so gating agrimensor behind a runtime flag keeps it in the bundle.
-
 ## What it cannot measure
 
-These are properties of WebGPU, not omissions.
+Properties of WebGPU, not omissions.
 
-- **GPU time outside passes.** `GPUCommandEncoder.writeTimestamp` was removed from the spec
-  ([gpuweb#4370](https://github.com/gpuweb/gpuweb/pull/4370)) because it gave no ordering
-  guarantee. Timestamps can only be written at render and compute pass boundaries, so copies,
-  clears and canvas presentation cannot be bracketed.
+- **GPU time outside passes.** `writeTimestamp` was removed from the spec
+  ([gpuweb#4370](https://github.com/gpuweb/gpuweb/pull/4370)) for giving no ordering guarantee.
+  Timestamps only exist at pass boundaries, so copies, clears and presentation cannot be bracketed.
 - **When GPU work executed, in CPU time.** The queue timeline and `performance.now()` have an
-  unknown offset and no API bridges them. Work is attributed to the frame it was _submitted_
-  in, never the frame it executed in.
-- **Cross submission timing, guaranteed.** The spec does not promise timestamps are comparable
-  across submits ([gpuweb#4361](https://github.com/gpuweb/gpuweb/issues/4361)). Agrimensor checks
-  at runtime instead of assuming, and withholds the affected metric if the check fails.
-- **Sub-millisecond precision.** Chrome reports timestamps in multiples of 65.536 microseconds,
-  measured, rather than the 100 microseconds its documentation states. A multi millisecond span
-  is meaningful, a 0.2ms pass is not.
-- **Comparisons across different GPU load.** GPU frequency scaling changes pass durations.
-  Halving a frame rate cap raised measured durations by roughly 40 percent for identical work,
-  because a less loaded GPU clocks down. Durations cannot be benchmarked at one setting and
-  carried to another.
-- **Physical GPU memory.** Agrimensor reports logical allocation requested through WebGPU. It does
-  not know driver residency, alignment padding, or implementation internal allocations, and
-  will not call any of its numbers VRAM.
-- **Anything on a backend other than Metal.** Every figure in this README, including the
-  timestamp behaviour and the overhead numbers, was measured on Dawn over Metal on Apple
-  Silicon. D3D12 and Vulkan are untested.
-- **Resources it never saw.** Anything created before `attach()`, canvas textures from
-  `getCurrentTexture()`, and resources released by garbage collection without an explicit
-  `destroy()`.
+  unknown offset and no API bridges them. Work is attributed to the frame it was submitted in.
+- **Cross submission timing, guaranteed.** The spec does not promise comparability across submits
+  ([gpuweb#4361](https://github.com/gpuweb/gpuweb/issues/4361)). Agrimensor checks at runtime and
+  withholds `gpu` if the check fails.
+- **Sub-millisecond precision.** Chrome quantises timestamps to 65.536µs, measured, rather than
+  the 100µs its docs state. A multi-millisecond span is meaningful, a 0.2ms pass is not.
+- **Comparisons across different GPU load.** Frequency scaling changes pass durations. Halving a
+  frame rate cap raised measured durations by roughly 40% for identical work.
+- **Physical GPU memory.** Logical allocation only. No driver residency, alignment padding or
+  implementation internals, and none of it will be called VRAM.
+- **Anything outside Metal.** Every figure here, including the overhead numbers, was measured on
+  Dawn over Metal on Apple Silicon. D3D12 and Vulkan are untested.
+- **Resources it never saw.** Anything created before `attach()`, canvas textures, and resources
+  released by garbage collection without an explicit `destroy()`.
+
+## Overhead and size
+
+**0.013 ms of CPU per frame** on a frame with 900 draw calls, 6 render passes, 1 compute pass and
+1 submit, which is 0.16% of a 120fps budget. Per intercepted call: `draw()` +14ns,
+`beginRenderPass()` +593ns, `createBuffer()` +110ns, `queue.submit()` +1900ns, plus one extra
+submit per frame to resolve timestamps. Measured on an Apple M2 Pro with `npm run bench` against
+the built artifact. No zero-overhead claim is made; method and caveats are in
+`spike/BENCHMARK.md`.
+
+The published artifact is 48.7 kB raw and 12.1 kB gzipped, shipped unminified so your bundler can
+minify it and so the source stays auditable. Minified with this project's own toolchain it is
+36.8 kB, or **9.7 kB gzipped**. There is no build-time flag, so gating agrimensor behind a runtime
+flag keeps it in the bundle.
 
 ## License
 
