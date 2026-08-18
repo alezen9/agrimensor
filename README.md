@@ -1,5 +1,13 @@
 # agrimensor
 
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/alezen9/agrimensor/main/assets/agrimensor.webp"
+    alt="A Roman surveyor sighting through a tripod-mounted instrument, with a boundary stone and a temple on the horizon"
+    width="320"
+  />
+</p>
+
 Headless WebGPU metrics with explicit measurement semantics. It attaches to a `GPUDevice`, works
 with any renderer or none, and states for every number what it measures and what it does not.
 
