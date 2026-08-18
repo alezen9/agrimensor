@@ -17,10 +17,11 @@ the one who sighted them accurately and recorded what was actually there.
 timeline bridge, no number that looks convenient and means something else. Those gaps are listed
 under [Watch out for](#watch-out-for) rather than papered over.
 
-Status: alpha, and every release before `0.1.0` is one, so a plain install gives you a
-prerelease. Names and semantics can still change. A metric that turns out to mean the wrong thing
-gets corrected or removed rather than kept, because a stable lie is worse than a breaking
-correction in a measurement library. Corrections are listed in `CHANGELOG.md`.
+The metrics below are a contract: a rename or a change of meaning gets a version bump and an
+entry in `CHANGELOG.md`. That contract bends one way. A metric that turns out to mean the wrong
+thing gets corrected or removed rather than kept, because a stable lie is worse than a breaking
+correction in a measurement library. This is 0.x, so such a correction can land in a minor
+version, and several already have.
 
 ## Install
 

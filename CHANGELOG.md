@@ -1,8 +1,20 @@
 # Changelog
 
-Metric names and semantics may still change before `0.1.0`. A metric whose meaning turns out to
-be wrong gets corrected or removed rather than preserved, since a stable lie is worse than a
-breaking correction in a measurement library.
+A metric whose meaning turns out to be wrong gets corrected or removed rather than preserved,
+since a stable lie is worse than a breaking correction in a measurement library. This is 0.x, so
+such a correction lands in a minor version with an entry here.
+
+## 0.1.0
+
+First release outside the alpha line. No metric changed its name or meaning; the entries below
+are the history of how these figures arrived at their current definitions.
+
+- README rewritten as a reference. It now shows the full `snapshot()` shape with a line on every
+  field, collects every caveat into one section, and lists the whole API. It previously described
+  none of the 22 metrics it exposes.
+- A prerelease now takes the npm `latest` tag while no stable release holds it, so a plain
+  install stopped resolving to the very first alpha. From here `latest` is a stable version and
+  prereleases go back to publishing under their own identifier.
 
 ## 0.1.0-alpha.8
 
