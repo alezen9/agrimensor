@@ -4,6 +4,12 @@ A metric whose meaning turns out to be wrong gets corrected or removed rather th
 since a stable lie is worse than a breaking correction in a measurement library. This is 0.x, so
 such a correction lands in a minor version with an entry here.
 
+## 0.1.1
+
+Documentation only. No metric, type or behaviour changed.
+
+- The README carries the surveyor emblem, and says a few things in plainer words.
+
 ## 0.1.0
 
 First release outside the alpha line. No metric changed its name or meaning; the alpha entries
