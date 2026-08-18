@@ -50,12 +50,10 @@ has `timestamp-query` and a batch of timestamps has finished reading back.
 
 ## Levels and flows read differently
 
-`resources` are **levels**: the state right now. Reading them on a timer is correct.
-
-`frame` and `gpu` are **flows**: each describes exactly one frame and is never an average.
-Sampling them on a timer reads an arbitrary frame, which looks unstable and misreports anything
-that varies between frames. This is the single easiest way to misread the library, and it has
-produced false bug reports. Read them every frame and aggregate yourself:
+`resources` are **levels**, so reading them on a timer is correct. `frame` and `gpu` are
+**flows**: each describes one frame, so sampling them on a timer reads an arbitrary frame and
+misreports anything that varies between frames. This is the easiest way to misread the library
+and it has produced false bug reports. Read them every frame and aggregate yourself:
 
 ```ts
 const samples: number[] = [];
@@ -71,51 +69,70 @@ const onRenderFrame = () => {
 
 ## Metrics
 
-Names carry their unit: `Count`, `InBytes`, `InMs`. Every metric can also explain itself at
-runtime through `describe()`, which returns the full methodology and caveat list.
+`snapshot()` returns this shape. Every field explains itself at runtime through `describe()`,
+which returns its full methodology and caveat list.
 
-### `resources`
+```ts
+{
+  // levels: the state right now, so reading these on a timer is correct
+  resources: {
+    // buffers created through the device and not explicitly destroyed
+    liveBufferCount: number;
+    // textures created through the device and not explicitly destroyed
+    liveTextureCount: number;
+    // sum of the declared size of live buffers
+    liveBufferAllocationSumInBytes: number;
+    // logical allocation of live textures, from format across the mip chain, layers and samples
+    liveTextureAllocationSumInBytes: number;
+    // the two sums above added
+    liveResourceAllocationSumInBytes: number;
+    // the highest that total has reached since attach, sampled on creation, never decreases
+    liveResourceAllocationPeakInBytes: number;
+  };
 
-Levels. Always present, no frame marker needed.
+  // flow: exactly one frame, the most recently completed one, never an average.
+  // undefined until two beginRenderFrame() calls have happened
+  frame?: {
+    // sequence number of the frame these figures describe
+    renderedFrameCount: number;
+    // draw, drawIndexed, drawIndirect and drawIndexedIndirect, plus bundle draws per replay
+    drawCallCount: number;
+    // dispatchWorkgroups and dispatchWorkgroupsIndirect
+    computeDispatchCount: number;
+    // render passes begun, not passes that completed
+    renderPassCount: number;
+    // compute passes begun, not passes that completed
+    computePassCount: number;
+    // queue.submit() calls, excluding agrimensor's own
+    gpuSubmissionCount: number;
+    // bytes handed to writeBuffer() and writeTexture(), not bus traffic
+    queueWriteSumInBytes: number;
+    // bytes described by the four copy* commands, whether or not they are submitted
+    commandCopySumInBytes: number;
+    // pipelines requested, sync and async, including ones that throw. zero in steady state
+    pipelineCreationCount: number;
+    // wall-clock time the calling thread sat inside synchronous pipeline creation
+    pipelineCreationBlockingDurationSumInMs: number;
+  };
 
-| Metric                              | Measures                                                                                                  | Does not mean                                                                                                 |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `liveBufferCount`                   | Buffers created through the device and not explicitly destroyed                                           | A buffer freed by garbage collection without `destroy()` stays counted, so this drifts up over a long session |
-| `liveTextureCount`                  | The same for textures                                                                                     | Canvas textures from `getCurrentTexture()` never appear, since they are not created through `createTexture()` |
-| `liveBufferAllocationSumInBytes`    | Sum of the declared `size` of live buffers                                                                | Not VRAM. Excludes staging buffers, alignment padding, pipeline caches and driver allocations                 |
-| `liveTextureAllocationSumInBytes`   | Logical allocation of live textures, from format block size across the full mip chain, layers and samples | Calculated from the descriptor, not read from the driver. Depth formats are modelled, not reported            |
-| `liveResourceAllocationSumInBytes`  | The two sums added                                                                                        | Inherits every caveat of both. Not VRAM                                                                       |
-| `liveResourceAllocationPeakInBytes` | The highest that total has reached since attach                                                           | Sampled only on creation, so a peak between two creations is missed. Never decreases                          |
-
-### `frame`
-
-One frame, the most recently completed one. Never an average.
-
-| Metric                                    | Measures                                                                                       | Does not mean                                                                                                |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `renderedFrameCount`                      | Sequence number of the frame these figures describe                                            | Not a `requestAnimationFrame` count, not an engine frame count, not presented frames                         |
-| `drawCallCount`                           | `draw`, `drawIndexed`, `drawIndirect`, `drawIndexedIndirect`. Bundle draws re-added per replay | Commands recorded, not primitives or instances. An indirect draw is one command whatever the GPU buffer says |
-| `computeDispatchCount`                    | `dispatchWorkgroups` and its indirect form                                                     | Commands, not workgroups or invocations                                                                      |
-| `renderPassCount`                         | Render passes begun this frame                                                                 | Begun, not completed successfully                                                                            |
-| `computePassCount`                        | Compute passes begun this frame                                                                | Begun, not completed successfully                                                                            |
-| `gpuSubmissionCount`                      | `queue.submit()` calls, excluding agrimensor's own                                             | Calls, not command buffers. One engine frame may span several submissions                                    |
-| `queueWriteSumInBytes`                    | Bytes handed to `writeBuffer()` and `writeTexture()`                                           | Data handed to the API, not bus traffic. Excludes `mappedAtCreation` and `mapAsync` writes                   |
-| `commandCopySumInBytes`                   | Bytes described by the four `copy*` commands                                                   | Bytes described, not bytes moved: an unsubmitted command buffer still counts. Not a CPU readback             |
-| `pipelineCreationCount`                   | Pipelines requested, sync and async, including ones that throw                                 | Steady state should be zero. Non-zero mid-run means pipelines are being built during rendering               |
-| `pipelineCreationBlockingDurationSumInMs` | Wall-clock time the calling thread spent inside synchronous pipeline creation                  | Blocking time on the calling thread, not GPU time and not total shader compilation cost                      |
-
-### `gpu`
-
-One frame, several frames behind the `frame` group. Requires `timestamp-query`.
-
-| Metric                                       | Measures                                                                        | Does not mean                                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `submittedRenderAndComputePassExecutionInMs` | **GPU time actually spent in passes**, counting concurrent passes once          | Passes only. Copies, queue writes, clears and compositing carry no timestamps and are excluded                       |
-| `submittedRenderAndComputePassGapSumInMs`    | Time inside that frame's pass window when no pass was running                   | Not purely idle: untimeable work such as copies lives here. Genuine idle only when `commandCopySumInBytes` is 0      |
-| `submittedRenderPassDurationSumInMs`         | Sum of individual render pass durations                                         | Overlapping passes are counted once per pass. Measured 27ms where real GPU time was 4ms. Prefer the execution figure |
-| `submittedComputePassDurationSumInMs`        | The same for compute passes                                                     | Same overlap inflation                                                                                               |
-| `uninstrumentedPassCount`                    | Passes agrimensor could not time, and which are missing from every figure above | Zero is healthy. Non-zero is the only signal that the gpu durations undercount                                       |
-| `resultLagFrameCount`                        | How many rendered frames back the figures above describe                        | Nothing is ever relabelled to the current frame; the lag grows if readback is slow                                   |
+  // flow: one frame, several frames behind `frame`. undefined without timestamp-query,
+  // before the first batch reads back, or when the timestamps fail the plausibility check
+  gpu?: {
+    // GPU time actually spent in passes, counting concurrent passes once. the figure to read
+    submittedRenderAndComputePassExecutionInMs: number;
+    // time inside that frame's pass window when no pass was running
+    submittedRenderAndComputePassGapSumInMs: number;
+    // sum of individual render pass durations, inflated by overlap
+    submittedRenderPassDurationSumInMs: number;
+    // sum of individual compute pass durations, inflated by overlap
+    submittedComputePassDurationSumInMs: number;
+    // passes agrimensor could not time, and which are missing from every figure above
+    uninstrumentedPassCount: number;
+    // how many rendered frames back the figures above describe
+    resultLagFrameCount: number;
+  };
+}
+```
 
 Elapsed GPU time for the frame's pass work is execution plus gap:
 
@@ -127,6 +144,27 @@ if (gpu) {
     gpu.submittedRenderAndComputePassGapSumInMs;
 }
 ```
+
+### What these numbers are not
+
+- **The duration sums are inflated by overlap.** Passes run concurrently, so each sum counts
+  overlapping time once per pass. In a real three.js app it read 27ms where the GPU had spent
+  4ms. Both sums carry a `preferInstead` pointing at the execution figure. They exist only for
+  comparison with what engines report.
+- **The gap is not pure idle.** Work that cannot carry a timestamp, such as copies encoded
+  between passes, lives inside it. It is genuine idle only when `commandCopySumInBytes` is zero
+  for the same frame.
+- **`uninstrumentedPassCount` above zero means the `gpu` figures undercount.** It is the only
+  signal for that. An engine running its own timestamp profiling drives it up, because a pass
+  descriptor holds one `timestampWrites` and agrimensor yields rather than overwrite yours.
+- **Counts are commands, not work.** One indirect draw is one draw call whatever its GPU-side
+  buffer says, and one dispatch is one dispatch whatever its workgroup count.
+- **Byte totals are logical allocation, not VRAM.** Texture bytes are computed from the
+  descriptor, never read from the driver, and exclude staging, padding and driver internals.
+- **Live counts drift upward.** A resource released by garbage collection without an explicit
+  `destroy()` stays counted, because that release is not observable.
+- **`gpu` describes an older frame than `frame` does.** Read `resultLagFrameCount` before
+  pairing figures from the two groups.
 
 ## API
 
