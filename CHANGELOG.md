@@ -4,6 +4,14 @@ A metric whose meaning turns out to be wrong gets corrected or removed rather th
 since a stable lie is worse than a breaking correction in a measurement library. This is 0.x, so
 such a correction lands in a minor version with an entry here.
 
+## 0.2.0
+
+- `attach()` can opt into labeled individual pass durations through `trackPassTimings`. The
+  resulting `gpu.passTimings` array is absent by default, keeping existing snapshot allocation
+  behavior unchanged.
+- `resolvePassLabel` lets renderer integrations translate pass or command encoder labels while
+  work is encoded. A callback failure is contained and keeps the original label.
+
 ## 0.1.1
 
 Documentation only. No metric, type or behaviour changed.
