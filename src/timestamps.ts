@@ -1,4 +1,9 @@
-export type PassKind = "render" | "compute";
+import type {
+  AttachOptions,
+  GpuPassTiming,
+  PassKind,
+  PassLabelContext,
+} from "./types";
 
 export type ResolvedTiming = {
   readonly frameNumber: number;
@@ -7,9 +12,10 @@ export type ResolvedTiming = {
   readonly executionInMs: number;
   readonly gapSumInMs: number;
   readonly uninstrumentedPassCount: number;
+  readonly passTimings?: readonly GpuPassTiming[];
 };
 
-type PassRecord = { slot: number; kind: PassKind };
+type PassRecord = { slot: number; kind: PassKind; label: string };
 
 type Region = {
   readonly slotBase: number;
@@ -104,13 +110,17 @@ export class TimestampRecorder {
   private readonly querySet: GPUQuerySet | undefined;
   private readonly resolveBuffer: GPUBuffer | undefined;
   private readonly regions: Region[] = [];
+  private readonly trackPassTimings: boolean;
+  private readonly resolvePassLabel: AttachOptions["resolvePassLabel"];
 
   private activeRegion: Region | undefined;
   private latest: ResolvedTiming | undefined;
   private isDestroyed = false;
 
-  constructor(device: GPUDevice) {
+  constructor(device: GPUDevice, options: AttachOptions = {}) {
     this.device = device;
+    this.trackPassTimings = options.trackPassTimings ?? false;
+    this.resolvePassLabel = options.resolvePassLabel;
     this.submitUncounted = device.queue.submit.bind(device.queue);
     this.isSupported = device.features.has("timestamp-query");
     if (!this.isSupported) return;
@@ -164,13 +174,16 @@ export class TimestampRecorder {
     if (this.activeRegion) this.activeRegion.uninstrumentedPassCount++;
   }
 
-  claimPass(kind: PassKind): GPURenderPassTimestampWrites | undefined {
+  claimPass(
+    kind: PassKind,
+    label: string,
+  ): GPURenderPassTimestampWrites | undefined {
     const region = this.activeRegion;
     if (!region || this.isDestroyed) return undefined;
     if (region.passes.length >= PASSES_PER_REGION) return undefined;
 
     const slot = region.slotBase + region.passes.length;
-    region.passes.push({ slot, kind });
+    region.passes.push({ slot, kind, label: this.getPassLabel(kind, label) });
 
     return {
       querySet: this.querySet!,
@@ -257,17 +270,26 @@ export class TimestampRecorder {
 
   private publish(region: Region, raw: BigUint64Array) {
     const intervals: { begin: number; end: number }[] = [];
+    const passTimings: GpuPassTiming[] | undefined = this.trackPassTimings
+      ? []
+      : undefined;
     let renderNs = 0;
     let computeNs = 0;
 
     for (let i = 0; i < region.passes.length; i++) {
+      const pass = region.passes[i]!;
       const begin = Number(raw[i * 2]!);
       const end = Number(raw[i * 2 + 1]!);
       if (end <= begin) continue;
 
       intervals.push({ begin, end });
-      if (region.passes[i]!.kind === "render") renderNs += end - begin;
+      if (pass.kind === "render") renderNs += end - begin;
       else computeNs += end - begin;
+      passTimings?.push({
+        kind: pass.kind,
+        label: pass.label,
+        durationInMs: (end - begin) / 1e6,
+      });
     }
 
     if (intervals.length === 0) return;
@@ -276,7 +298,7 @@ export class TimestampRecorder {
 
     if (!this.plausibility.record(spanNs)) return;
 
-    this.latest = {
+    const timing: ResolvedTiming = {
       frameNumber: region.frameNumber,
       renderPassDurationSumInMs: renderNs / 1e6,
       computePassDurationSumInMs: computeNs / 1e6,
@@ -284,5 +306,17 @@ export class TimestampRecorder {
       gapSumInMs: (spanNs - executionNs) / 1e6,
       uninstrumentedPassCount: region.uninstrumentedPassCount,
     };
+    this.latest = passTimings ? { ...timing, passTimings } : timing;
+  }
+
+  private getPassLabel(kind: PassKind, label: string) {
+    if (!this.trackPassTimings || !this.resolvePassLabel) return label;
+
+    const pass: PassLabelContext = { kind, label };
+    try {
+      return this.resolvePassLabel(pass) ?? label;
+    } catch {
+      return label;
+    }
   }
 }

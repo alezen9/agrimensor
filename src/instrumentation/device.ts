@@ -67,7 +67,7 @@ export const instrumentDevice = (
       (original) =>
         function (this: GPUDevice, descriptor?: GPUCommandEncoderDescriptor) {
           const encoder = original.call(this, descriptor);
-          instrumentCommandEncoder(encoder, state);
+          instrumentCommandEncoder(encoder, state, descriptor?.label ?? "");
           return encoder;
         },
     ),

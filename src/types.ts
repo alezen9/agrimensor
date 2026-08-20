@@ -48,6 +48,18 @@ export type FrameMetrics = {
   readonly pipelineCreationBlockingDurationSumInMs: number;
 };
 
+export type PassKind = "render" | "compute";
+
+export type PassLabelContext = {
+  readonly kind: PassKind;
+  /** The pass descriptor label, falling back to its command encoder label. */
+  readonly label: string;
+};
+
+export type GpuPassTiming = PassLabelContext & {
+  readonly durationInMs: number;
+};
+
 export type GpuMetrics = {
   readonly resultLagFrameCount: number;
   readonly submittedRenderPassDurationSumInMs: number;
@@ -55,6 +67,8 @@ export type GpuMetrics = {
   readonly submittedRenderAndComputePassExecutionInMs: number;
   readonly submittedRenderAndComputePassGapSumInMs: number;
   readonly uninstrumentedPassCount: number;
+  /** Present only when pass timing collection was requested at attach time. */
+  readonly passTimings?: readonly GpuPassTiming[];
 };
 
 export type Snapshot = {
@@ -112,7 +126,7 @@ export type Capabilities = {
 };
 
 type LeafPaths<T, Prefix extends string> = {
-  [K in keyof T & string]: `${Prefix}.${K}`;
+  [K in keyof T & string]: T[K] extends number ? `${Prefix}.${K}` : never;
 }[keyof T & string];
 
 export type MetricPath =
@@ -138,6 +152,16 @@ export type AttachOptions = {
    * has to tolerate that, exactly as the live totals do.
    */
   readonly onResourceDestroyed?: (resource: ResourceEntry) => void;
+  /**
+   * Includes one timing per instrumented pass in gpu.passTimings. Off by default
+   * because the array and its entries allocate once per resolved GPU frame.
+   */
+  readonly trackPassTimings?: boolean;
+  /**
+   * Maps an engine label to a consumer label while the pass is encoded. A callback
+   * that throws is swallowed and the original label is kept.
+   */
+  readonly resolvePassLabel?: (pass: PassLabelContext) => string | undefined;
 };
 
 export type Agrimensor = {

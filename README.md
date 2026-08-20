@@ -146,6 +146,12 @@ quietly wrong.
     uninstrumentedPassCount: number;
     // how many rendered frames back the figures above describe
     resultLagFrameCount: number;
+    // opt-in individual pass timings, absent unless trackPassTimings was enabled
+    passTimings?: readonly {
+      kind: "render" | "compute";
+      label: string;
+      durationInMs: number;
+    }[];
   };
 }
 ```
@@ -274,6 +280,23 @@ They fire synchronously inside the allocating call, so record and defer, keep th
 before the capture, and do not call back into the device. A hook that throws is swallowed.
 `onResourceDestroyed` only fires for an explicit `destroy()`. This says where a resource came
 from, not why it is still alive: it is not a leak detector.
+
+### Per-pass timings
+
+Individual pass timings are opt-in because they allocate one array and one entry per measured
+pass. Labels come from the pass descriptor, falling back to the command encoder label. A renderer
+integration can translate those engine labels while each pass is encoded:
+
+```ts
+const agrimensor = attach(device, {
+  trackPassTimings: true,
+  resolvePassLabel: ({ kind, label }) => passNames.get(`${kind}:${label}`),
+});
+```
+
+The callback runs synchronously and should only perform a cheap lookup. If it returns `undefined`
+or throws, Agrimensor keeps the original label. `gpu.passTimings` describes the same delayed frame
+as the other `gpu` fields.
 
 ## Overhead and size
 

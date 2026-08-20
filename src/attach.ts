@@ -34,7 +34,7 @@ class AgrimensorInstance implements Agrimensor {
     this.state = new AgrimensorState(options);
     // the recorder is created before instrumentation so its own query set and
     // buffers are not counted as consumer resources
-    const recorder = new TimestampRecorder(device);
+    const recorder = new TimestampRecorder(device, options);
     this.state.timestamps = recorder;
     this.detectedCapabilities.timestampQueries = recorder.isSupported;
 
@@ -101,7 +101,7 @@ class AgrimensorInstance implements Agrimensor {
       return undefined;
     }
 
-    return {
+    const gpu: GpuMetrics = {
       resultLagFrameCount:
         this.state.getStartedFrameCount() - latest.frameNumber,
       submittedRenderPassDurationSumInMs: latest.renderPassDurationSumInMs,
@@ -110,6 +110,9 @@ class AgrimensorInstance implements Agrimensor {
       submittedRenderAndComputePassGapSumInMs: latest.gapSumInMs,
       uninstrumentedPassCount: latest.uninstrumentedPassCount,
     };
+    return latest.passTimings
+      ? { ...gpu, passTimings: latest.passTimings }
+      : gpu;
   }
 
   private assertUsable() {

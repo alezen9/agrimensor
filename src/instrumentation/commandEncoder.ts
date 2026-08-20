@@ -1,7 +1,7 @@
 import { calculateBufferCopyBytes } from "../bufferBytes";
 import { patchMethod } from "../patch";
 import type { AgrimensorState } from "../state";
-import type { PassKind } from "../timestamps";
+import type { PassKind } from "../types";
 import { calculateCopyRegionBytes } from "../textureBytes";
 import { instrumentComputePass, instrumentRenderPass } from "./passes";
 
@@ -12,10 +12,13 @@ import { instrumentComputePass, instrumentRenderPass } from "./passes";
  * The descriptor is copied rather than mutated, because engines reuse descriptor
  * objects between frames.
  */
-const withTimestamps = <T extends { timestampWrites?: unknown }>(
+const withTimestamps = <
+  T extends { label?: string; timestampWrites?: unknown },
+>(
   descriptor: T,
   state: AgrimensorState,
   kind: PassKind,
+  encoderLabel: string,
 ): T => {
   const recorder = state.timestamps;
   if (!recorder?.isSupported) return descriptor;
@@ -25,7 +28,10 @@ const withTimestamps = <T extends { timestampWrites?: unknown }>(
     return descriptor;
   }
 
-  const timestampWrites = recorder.claimPass(kind);
+  const timestampWrites = recorder.claimPass(
+    kind,
+    descriptor.label || encoderLabel,
+  );
   if (!timestampWrites) {
     recorder.countUninstrumentedPass();
     return descriptor;
@@ -110,6 +116,7 @@ const instrumentCopies = (
 export const instrumentCommandEncoder = (
   encoder: GPUCommandEncoder,
   state: AgrimensorState,
+  encoderLabel: string,
 ) => {
   instrumentCopies(encoder, state);
 
@@ -121,7 +128,7 @@ export const instrumentCommandEncoder = (
         state.current.renderPassCount++;
         const pass = original.call(
           this,
-          withTimestamps(descriptor, state, "render"),
+          withTimestamps(descriptor, state, "render", encoderLabel),
         );
         instrumentRenderPass(pass, state);
         return pass;
@@ -139,7 +146,7 @@ export const instrumentCommandEncoder = (
         state.current.computePassCount++;
         const pass = original.call(
           this,
-          withTimestamps(descriptor ?? {}, state, "compute"),
+          withTimestamps(descriptor ?? {}, state, "compute", encoderLabel),
         );
         instrumentComputePass(pass, state);
         return pass;
